@@ -1,0 +1,21 @@
+{
+  "name": "the-5-to-9",
+  "version": "0.1.0",
+  "description": "Clock in a full night-shift crew of AI role-agents that refine goals, work a beads backlog in parallel, and ralph-loop your repo to done — hands-off, with hard gates only on irreversible actions.",
+  "author": {
+    "name": "jakecastillo"
+  },
+  "homepage": "https://github.com/jakecastillo/the-5-to-9",
+  "repository": "https://github.com/jakecastillo/the-5-to-9",
+  "license": "MIT",
+  "keywords": [
+    "orchestration",
+    "multi-agent",
+    "autonomous",
+    "ralph-loop",
+    "beads",
+    "agents",
+    "devops",
+    "night-shift"
+  ]
+}
