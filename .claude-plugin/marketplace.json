@@ -1,0 +1,18 @@
+{
+  "name": "the-5-to-9",
+  "description": "The 5 to 9 — an autonomous night-shift crew of AI role-agents for hands-off project execution.",
+  "owner": {
+    "name": "jakecastillo"
+  },
+  "plugins": [
+    {
+      "name": "the-5-to-9",
+      "description": "Clock in a full night-shift crew that works a beads backlog in parallel and ralph-loops your repo to done.",
+      "version": "0.1.0",
+      "source": "./",
+      "author": {
+        "name": "jakecastillo"
+      }
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+# The 5 to 9 — local shift state (never committed)
+.claude/five-to-nine/
+.claude/ralph-loop.local.md
+*.local.md
+
+# Beads: commit the JSONL export (source of truth), ignore the local DB cache
+.beads/*.db
+.beads/*.db-shm
+.beads/*.db-wal
+.beads/.dolt/
+.beads/cache/
+
+# Node / tooling
+node_modules/
+npm-debug.log*
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*~
+
+# Secrets / env
+.env
+.env.*
+!.env.example
+
+# Logs & scratch
+*.log
+/tmp/
+.scratch/
