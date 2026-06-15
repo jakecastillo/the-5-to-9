@@ -1,0 +1,107 @@
+# The 5 to 9 — irreversible-gate corpus. One case per line: "<verdict> <command>".
+# verdict is deny (irreversible OUTWARD action) or allow (reversible shift work).
+# Lines starting with # are comments. Consumed by tests/gate-test.sh.
+
+# ── must DENY: force-push (long, short, clustered, +refspec, via git -C) ──────
+deny git push --force origin main
+deny git push -f
+deny git push -f origin main
+deny git push -uf origin main
+deny git push --force-with-lease
+deny git push --mirror
+deny git push origin +main
+deny git push origin +refs/heads/main
+deny git -C /target push --force origin main
+deny git -c protocol.x=y push --force
+deny git --git-dir=/repo/work push --force
+
+# ── must DENY: remote-branch / remote-data deletion ──────────────────────────
+deny git push origin --delete oldbranch
+deny git push origin :oldbranch
+deny git -C /t push origin :oldbranch
+deny gh repo delete owner/repo
+deny gh release delete v1.0.0
+deny dropdb proddb
+deny aws s3 rm s3://bucket/key --recursive
+deny aws s3api delete-object --bucket b --key k
+deny aws ecr batch-delete-image --repository-name r
+deny aws rds delete-db-instance --db-instance-identifier x
+
+# ── must DENY: publish a release / package ───────────────────────────────────
+deny npm publish
+deny pnpm publish
+deny cargo publish
+deny gem push pkg.gem
+deny twine upload dist/*
+deny poetry publish
+deny mvn deploy -P release
+deny gradle publish
+deny dotnet nuget push x.nupkg -k KEY
+deny gh release create v1.0.0
+
+# ── must DENY: deploy to prod / remote ───────────────────────────────────────
+deny docker push myimage:latest
+deny kubectl apply -f deploy.yaml
+deny kubectl create -f prod.yaml
+deny k apply -f deploy.yaml
+deny kubectl rollout restart deploy/web
+deny helm upgrade web ./chart
+deny terraform apply -auto-approve
+deny pulumi up
+deny cdk deploy
+deny wrangler deploy
+deny pm2 deploy production
+deny serverless deploy
+deny netlify deploy --prod
+deny vercel --prod
+deny vercel deploy
+deny firebase deploy
+deny fly deploy
+deny heroku deploy
+deny gcloud app deploy
+deny gcloud run deploy svc
+deny railway up
+deny ansible-playbook deploy.yml
+deny npm run deploy
+deny make deploy
+deny supabase db reset
+
+# ── must DENY: destroy / rotate secrets ──────────────────────────────────────
+deny aws secretsmanager delete-secret --secret-id x
+deny aws secretsmanager rotate-secret --secret-id x
+deny gh secret delete API_KEY
+deny vault kv delete secret/x
+
+# ── must DENY: irreversible inside a compound command ────────────────────────
+deny git add -A && git commit -m x && npm publish
+deny sudo wrangler deploy
+
+# ── must ALLOW: reversible shift work ────────────────────────────────────────
+allow git push origin the-5-to-9/shift-20260614
+allow git push -u origin HEAD
+allow git push --follow-tags
+allow git push origin --tags
+allow git push origin HEAD:refs/heads/feature
+allow git -C /target push origin my-shift-branch
+allow git commit -m 'push it real good'
+allow git checkout -b the-5-to-9/shift-20260614
+allow git add -A
+allow git status
+allow npm test
+allow npm run build
+allow npm install
+allow make build
+allow make test
+allow pytest -q
+allow cargo test
+allow go test ./...
+allow aws s3 cp ./a s3://b/c
+allow gcloud auth login
+allow gcloud config set project deploy-thing
+allow gcloud auth login && echo deploy-notes.txt
+allow vercel link && npm run dev
+allow git push origin feature-deploy-button
+allow bd ready --claim --json
+allow ls -la
+allow docker build -t img .
+allow kubectl get pods
