@@ -27,6 +27,12 @@ There is no build step. "Green" = `validate-plugin.sh` exits 0. CI runs it on pu
   Pin hook commands to Git Bash in `hooks.json`. Quote `"${CLAUDE_PLUGIN_ROOT}"`.
   `chmod +x` is not reliable on Windows checkouts — invoke scripts as
   `bash "${CLAUDE_PLUGIN_ROOT}/hooks/x.sh"`, never rely on the exec bit.
+- **Logic-heavy hooks run on zero-dep Node (`.mjs`), behind a bash launcher.** The
+  irreversible gate is `hooks/irreversible-gate.mjs` (Node 18+); its `.sh` is a thin
+  launcher that execs node and **falls back to the bash classifier if node is absent**
+  (fail closed — never silent-allow). Orchestration scripts (`night-shift`, `setup-shift`,
+  `clock-out`, `guardrail-scan`) stay POSIX bash by design. `node --test hooks/*.test.mjs`
+  covers the ported logic; the `tests/gate-cases.txt` corpus pins behaviour across both.
 - **Plugin layout:** manifest only in `.claude-plugin/`; all components
   (`agents/ commands/ skills/ hooks/`) at repo root. Paths in manifests start `./`.
 - **Agents/skills/commands** are markdown with YAML frontmatter; `name` + `description`
