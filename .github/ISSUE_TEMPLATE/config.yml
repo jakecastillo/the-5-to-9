@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Questions & ideas (Discussions)
+    url: https://github.com/jakecastillo/the-5-to-9/discussions
+    about: Have a question, want to share a shift report, or kick around an idea? Start a Discussion instead of opening an issue.
