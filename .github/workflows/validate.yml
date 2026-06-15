@@ -25,6 +25,11 @@ jobs:
         # bd isn't installed in CI, so this exercises the bd-independent path.
         run: bash tests/smoke-shift.sh
 
+      - name: Run node --test (ported hooks)
+        # White-box unit tests for the Node-ported hooks (the gate, today).
+        # ubuntu-latest ships Node, so this always runs in CI.
+        run: node --test hooks/*.test.mjs
+
   shellcheck:
     name: shellcheck
     runs-on: ubuntu-latest

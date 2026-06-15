@@ -25,6 +25,23 @@ if ! command -v f9_json_string >/dev/null 2>&1; then
   }
 fi
 
+# Prefer the Node gate (in-process JSON + RegExp: faster, and free of the bash
+# sed/regex pitfalls). Fall back to the bash classifier below when no node runtime
+# is found — so a missing runtime never silently disables the gate. hooks.json is
+# unchanged (it still invokes this launcher).
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+f9_node="$(command -v node 2>/dev/null || true)"
+if [[ -z "$f9_node" ]] && command -v claude >/dev/null 2>&1; then
+  f9_cdir="$(dirname "$(command -v claude 2>/dev/null)")"
+  for f9_c in "$f9_cdir/node" "$f9_cdir/node.exe"; do
+    [[ -x "$f9_c" ]] && { f9_node="$f9_c"; break; }
+  done
+fi
+if [[ -n "$f9_node" && -f "$HERE/irreversible-gate.mjs" ]]; then
+  exec "$f9_node" "$HERE/irreversible-gate.mjs"
+fi
+
+# ---- no node runtime: bash fallback classifier (belt-and-suspenders) ----------
 payload="$(cat 2>/dev/null || true)"
 
 # Pull the shell command out of the tool input (jq preferred; sed fallback that

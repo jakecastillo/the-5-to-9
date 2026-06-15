@@ -29,6 +29,7 @@ required=(
   "skills/right-sizing-the-crew/SKILL.md"
   "hooks/hooks.json" "hooks/session-start.sh" "hooks/user-prompt-submit.sh"
   "hooks/shift-loop.sh" "hooks/irreversible-gate.sh" "hooks/pre-compact.sh"
+  "hooks/irreversible-gate.mjs" "hooks/gate.test.mjs"
   "scripts/lib/common.sh" "scripts/beads-helpers.sh" "scripts/setup-shift.sh"
   "scripts/clock-out.sh" "scripts/guardrail-scan.sh" "scripts/night-shift.sh"
   "tests/run.sh" "tests/gate-test.sh" "tests/gate-cases.txt" "tests/smoke-shift.sh"
@@ -130,6 +131,19 @@ if [[ "$corpus_rc" -eq 0 ]]; then
   ok "$(printf '%s' "$corpus_out" | tail -n1)"
 else
   bad "gate corpus regressed:"; printf '%s\n' "$corpus_out" | sed 's/^/   /'
+fi
+
+# ── 5d. node --test (white-box unit tests for ported hooks; skipped if node absent) ─
+head_ "node --test (ported hooks)"
+if have node; then
+  nt_out="$(node --test hooks/*.test.mjs 2>&1)"; nt_rc=$?
+  if [[ "$nt_rc" -eq 0 ]]; then
+    ok "node --test passed ($(printf '%s' "$nt_out" | grep -aoE 'pass [0-9]+' | head -n1))"
+  else
+    bad "node --test failed:"; printf '%s\n' "$nt_out" | grep -aE '^(not ok|# (fail|pass|tests))' | tail -20 | sed 's/^/   /'
+  fi
+else
+  note "node not installed — node --test skipped (CI runs it)"
 fi
 
 # ── 6. Optional: shellcheck (never blocks) ───────────────────────────────────

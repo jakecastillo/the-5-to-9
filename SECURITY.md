@@ -34,7 +34,10 @@ The crew is built **not** to take irreversible outward actions on its own.
   command. It is a best-effort **deny-list, not a sandbox**: it covers the named outward
   actions across common tools but can't be exhaustive, and purely *local* destruction
   (`rm -rf`, `dd`) is intentionally out of scope — the crew works a deletable shift
-  branch, and your review of that branch is the real backstop.
+  branch, and your review of that branch is the real backstop. The gate runs on
+  **Node 18+** behind a bash launcher; if `node` is absent it falls back to the bash
+  classifier (and a SessionStart preflight warns you), so a missing runtime never
+  silently disables it.
 - **No-clobber** — the crew never modifies your `CLAUDE.md`/`AGENTS.md`; it injects
   context additively and obeys your repo's existing guardrails first.
 - **Capped iterations** — loops always run with a maximum iteration count.
