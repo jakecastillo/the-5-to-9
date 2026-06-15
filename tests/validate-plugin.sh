@@ -31,7 +31,7 @@ required=(
   "hooks/shift-loop.sh" "hooks/irreversible-gate.sh" "hooks/pre-compact.sh"
   "scripts/lib/common.sh" "scripts/beads-helpers.sh" "scripts/setup-shift.sh"
   "scripts/clock-out.sh" "scripts/guardrail-scan.sh" "scripts/night-shift.sh"
-  "tests/run.sh"
+  "tests/run.sh" "tests/gate-test.sh" "tests/gate-cases.txt" "tests/smoke-shift.sh"
   "AGENTS.md" "CLAUDE.md" "README.md" "CONTRIBUTING.md" "CHANGELOG.md"
   "SECURITY.md" "CODE_OF_CONDUCT.md" "LICENSE" ".gitignore"
   "docs/superpowers/specs/2026-06-14-the-5-to-9-design.md"
@@ -121,6 +121,15 @@ if . "$ROOT/scripts/lib/common.sh" 2>/dev/null && command -v f9_json_string >/de
   [[ "$esc_ok" -eq 1 ]] && ok "no-jq JSON escaper emits valid quoted strings"
 else
   note "could not source common.sh / f9_json_string — escaper check skipped"
+fi
+
+# ── 5c. Irreversible-gate corpus (deny/allow verdicts must not regress) ───────
+head_ "irreversible gate corpus"
+corpus_out="$(bash "$ROOT/tests/gate-test.sh" 2>&1)"; corpus_rc=$?
+if [[ "$corpus_rc" -eq 0 ]]; then
+  ok "$(printf '%s' "$corpus_out" | tail -n1)"
+else
+  bad "gate corpus regressed:"; printf '%s\n' "$corpus_out" | sed 's/^/   /'
 fi
 
 # ── 6. Optional: shellcheck (never blocks) ───────────────────────────────────

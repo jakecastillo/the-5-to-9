@@ -55,7 +55,7 @@ F9_TOOL_RE="$F9_TOOL_RE|(^| )terraform +(apply|destroy)( |$)|(^| )pulumi +(up|de
 F9_TOOL_RE="$F9_TOOL_RE|(^| )wrangler +(deploy|publish)( |$)|(^| )pm2 +deploy( |$)|(^| )railway +up( |$)|(^| )ansible-playbook( |$)"
 F9_TOOL_RE="$F9_TOOL_RE|(^| )(serverless|sls) +deploy( |$)|(^| )netlify +deploy( |$)|(^| )firebase +deploy( |$)|(^| )(flyctl|fly) +deploy( |$)"
 F9_TOOL_RE="$F9_TOOL_RE|(^| )vercel( +[^ ]+)* +(--prod|deploy)( |$)|(^| )gcloud( +[^ ]+)* +deploy( |$)|(^| )heroku +(deploy|releases|pg:reset)( |$)"
-F9_TOOL_RE="$F9_TOOL_RE|(^| )aws +(deploy|s3 +(rm|rb)|s3api +delete-[a-z]+|ecr +batch-delete-image|secretsmanager +(delete-secret|rotate-secret)|rds +delete-db)( |$)"
+F9_TOOL_RE="$F9_TOOL_RE|(^| )aws +(deploy|s3 +(rm|rb)|s3api +delete-[a-z]+|ecr +batch-delete-image|secretsmanager +(delete-secret|rotate-secret)|rds +delete-db[a-z-]*)( |$)"
 F9_TOOL_RE="$F9_TOOL_RE|(^| )supabase +db +reset( |$)|(^| )vault +(kv +)?(delete|destroy)( |$)|(^| )dropdb( |$)|(^| )drop +database( |$)"
 
 # git push: force / delete / mirror / +refspec / :refspec — tolerant of leading

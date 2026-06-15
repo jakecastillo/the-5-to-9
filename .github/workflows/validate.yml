@@ -20,10 +20,14 @@ jobs:
       - name: Run plugin validation
         run: bash tests/validate-plugin.sh
 
+      - name: Run shift smoke test
+        # End-to-end mechanics: setup-shift -> Stop-loop -> clock-out + gate.
+        # bd isn't installed in CI, so this exercises the bd-independent path.
+        run: bash tests/smoke-shift.sh
+
   shellcheck:
     name: shellcheck
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - name: Checkout
         uses: actions/checkout@v4
