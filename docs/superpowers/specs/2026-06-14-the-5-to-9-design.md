@@ -6,7 +6,7 @@
 > hands-off, with hard gates only on irreversible actions.
 
 - **Status:** Approved direction (owner handed off for autonomous build on 2026-06-14)
-- **Author:** jakecastillo (built by Claude / The 5 to 9 itself, dogfooded)
+- **Author:** jakecastillo (dogfooded — The 5 to 9 helped build itself)
 - **Spec date:** 2026-06-14
 
 ---

@@ -1,0 +1,39 @@
+name: validate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  validate:
+    name: validate-plugin
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Ensure jq is available
+        run: sudo apt-get install -y jq || true
+
+      - name: Run plugin validation
+        run: bash tests/validate-plugin.sh
+
+  shellcheck:
+    name: shellcheck
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run shellcheck
+        # Lint shift-crew shell entrypoints; non-blocking so style nits don't gate merges.
+        uses: ludeeus/action-shellcheck@master
+        with:
+          severity: warning
+          scandir: '.'
+          additional_files: 'hooks scripts'
+        env:
+          SHELLCHECK_OPTS: -e SC1091

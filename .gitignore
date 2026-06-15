@@ -1,32 +1,93 @@
-# The 5 to 9 — local shift state (never committed)
+# ─────────────────────────────────────────────────────────────────────────────
+# The 5 to 9 — .gitignore
+# Rule of thumb: the PRODUCT (agents/ skills/ commands/ hooks/ .claude-plugin/)
+# is committed. Local/runtime AI state, transcripts, caches, and secrets are NOT.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── Local shift state (never commit) ─────────────────────────────────────────
 .claude/five-to-nine/
 .claude/ralph-loop.local.md
 *.local.md
 
-# Beads: commit the JSONL export (source of truth), ignore the local DB cache
+# ── AI-assistant runtime / local artifacts (never commit) ────────────────────
+# NOTE: .claude-plugin/ is the plugin manifest dir and IS committed — it is a
+# different path from .claude/ (local settings) and is not matched below.
+.claude/settings.json
+.claude/settings.local.json
+.claude/*.local.json
+.claude/local/
+.claude/todos/
+.claude/history/
+.claude/shell-snapshots/
+.claude/statsig/
+.claude/projects/
+.claude/plugins/
+.codex/
+!.codex-plugin/
+.aider*
+.cursor/
+!.cursor-plugin/
+.codeium/
+.continue/
+.specstory/
+.windsurf/
+.gemini/
+.goose/
+*.aichat
+*.transcript.jsonl
+ai-transcripts/
+**/agent-*.jsonl
+**/*.agent.log
+**/*.session.jsonl
+
+# ── Beads: commit the JSONL roadmap export + minimal config; ignore the local
+# Dolt DB, bd's git-hook shims, and per-machine runtime. (.beads/ has its own
+# .gitignore too; these belt-and-suspenders rules keep the product repo clean.)
 .beads/*.db
 .beads/*.db-shm
 .beads/*.db-wal
 .beads/.dolt/
+.beads/embeddeddolt/
 .beads/cache/
+.beads/backup/
+.beads/hooks/
+.beads/README.md
+.beads/interactions.jsonl
+.beads/.local_version
+.beads/*.lock
+.beads-credential-key
 
-# Node / tooling
+# ── Secrets / credentials / env (never commit) ───────────────────────────────
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa*
+id_ed25519*
+secrets.json
+.secrets/
+credentials.json
+*.credentials
+
+# ── Node / tooling ───────────────────────────────────────────────────────────
 node_modules/
 npm-debug.log*
+yarn-error.log
+.pnpm-debug.log*
 
-# OS / editor noise
+# ── OS / editor noise ────────────────────────────────────────────────────────
 .DS_Store
 Thumbs.db
 desktop.ini
 *.swp
 *~
+.idea/
+.vscode/
 
-# Secrets / env
-.env
-.env.*
-!.env.example
-
-# Logs & scratch
+# ── Logs & scratch ───────────────────────────────────────────────────────────
 *.log
 /tmp/
 .scratch/

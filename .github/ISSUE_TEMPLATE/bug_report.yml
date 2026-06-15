@@ -1,0 +1,89 @@
+name: Bug report
+description: Something on the night shift went sideways. Tell us what broke.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for filing a bug. The crew reads these between rushes. Please fill in
+        as much as you can — repro steps and logs are what actually get things fixed.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you expect to happen, and what actually happened instead?
+      placeholder: I ran a shift and expected X, but got Y.
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: Exact steps so we can hit the same wall you did.
+      placeholder: |
+        1. Install via '...'
+        2. Run '/clock-in ...' (or scripts/night-shift.sh --max-iterations N)
+        3. Observe '...'
+    validations:
+      required: true
+
+  - type: dropdown
+    id: command-engine
+    attributes:
+      label: Which command / engine?
+      description: Where did the bug show up?
+      options:
+        - /clock-in (in-session engine)
+        - /clock-out
+        - /shift-status
+        - /the-5-to-9 (help/overview)
+        - scripts/night-shift.sh (fresh-process loop engine)
+        - Install / marketplace
+        - tests/validate-plugin.sh
+        - Other / not sure
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: The 5 to 9 version
+      description: Plugin version (see plugin manifest / CHANGELOG). Default is 0.1.0.
+      placeholder: "0.1.0"
+    validations:
+      required: false
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - macOS
+        - Linux
+        - Windows (WSL)
+        - Windows (Git Bash / native)
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs / output
+      description: Paste shift output, errors, or shell logs. This is automatically formatted, no backticks needed.
+      render: shell
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before you file
+      options:
+        - label: I searched existing issues and this isn't a duplicate.
+          required: true
+        - label: I scrubbed secrets / tokens out of the logs above.
+          required: true

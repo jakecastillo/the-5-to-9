@@ -1,0 +1,39 @@
+{
+  "name": "the-5-to-9",
+  "version": "0.1.0",
+  "description": "Clock in a full night-shift crew of AI role-agents that refine goals, work a beads backlog in parallel, and ralph-loop your repo to done — hands-off, with hard gates only on irreversible actions. NOTE: native Cursor runtime support is phase-2; today this manifest documents the adapter path, while the portable core (AGENTS.md + skills + scripts + MCP) runs in any AGENTS.md-aware agent.",
+  "author": {
+    "name": "jakecastillo"
+  },
+  "homepage": "https://github.com/jakecastillo/the-5-to-9",
+  "repository": "https://github.com/jakecastillo/the-5-to-9",
+  "license": "MIT",
+  "keywords": [
+    "orchestration",
+    "multi-agent",
+    "autonomous",
+    "ralph-loop",
+    "beads",
+    "agents",
+    "devops",
+    "night-shift",
+    "cursor"
+  ],
+  "interface": {
+    "displayName": "The 5 to 9",
+    "shortDescription": "The shift that works while you're off the clock.",
+    "longDescription": "The 5 to 9 clocks in a night-shift crew of AI role-agents — the Owner (strategy), the Floor Manager (orchestrator), the Regular (analyst), the Line Cook (developer), the Health Inspector (QA), the Bouncer (security), and the Janitor (devops) — to work a beads backlog in parallel and ralph-loop a repo to done. It runs hands-off but hard-gates irreversible outward actions (prod/remote deploy, publishing a release or package, force-push, deleting remote data, destroying or rotating secrets); everything reversible just proceeds on a dedicated shift branch. Cursor runtime support is phase-2: the portable core (AGENTS.md + skills + scripts + MCP) already works in AGENTS.md-aware agents, while plugin hook/agent wiring stays Claude-Code-native for now.",
+    "developerName": "jakecastillo",
+    "category": "Coding",
+    "capabilities": [
+      "Interactive",
+      "Read",
+      "Write"
+    ],
+    "defaultPrompt": [
+      "clock in and take the night shift on this repo"
+    ],
+    "websiteURL": "https://github.com/jakecastillo/the-5-to-9",
+    "brandColor": "#1E293B"
+  }
+}
