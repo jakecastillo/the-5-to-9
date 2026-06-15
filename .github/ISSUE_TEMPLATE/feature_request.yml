@@ -1,0 +1,53 @@
+name: Feature request
+description: Suggest something the crew should be able to do.
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Got an idea for the night shift? Tell us the problem first, then the fix you
+        have in mind. Problem-framed requests are easier to act on.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What's the problem?
+      description: What are you trying to do that's hard or impossible today? What's the frustration?
+      placeholder: When I run a long shift, I can't easily X because Y.
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: Describe what you'd like to happen. A new command, flag, role-agent behavior, gate, etc.
+      placeholder: Add a '...' flag to scripts/night-shift.sh that '...'.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Any workarounds you've tried, or other approaches you weighed and rejected.
+      placeholder: I tried '...', but it falls short because '...'.
+    validations:
+      required: false
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Anything else — links, examples, screenshots, related issues.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before you file
+      options:
+        - label: I searched existing issues and discussions and this isn't a duplicate.
+          required: true
