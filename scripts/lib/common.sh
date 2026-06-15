@@ -74,9 +74,26 @@ f9_state_body() {
 
 # --- json --------------------------------------------------------------------
 # JSON-escape stdin → a quoted JSON string on stdout (prefers jq, falls back).
+# The awk fallback wraps in quotes unconditionally and handles 0/1/N lines
+# uniformly, so empty input yields "" and single-line input is correctly quoted
+# (a prior sed-slurp fallback dropped the quotes on single-line input → invalid
+# JSON when jq was absent, e.g. Git Bash). Set F9_NO_JQ=1 to force the fallback
+# (used by the test gate to exercise the no-jq path).
 f9_json_string() {
-  if f9_have jq; then jq -Rs .; else
-    sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' -e ':a;N;$!ba;s/\n/\\n/g' -e 's/^/"/' -e 's/$/"/'
+  if [[ -z "${F9_NO_JQ:-}" ]] && f9_have jq; then
+    jq -Rs .
+  else
+    awk '
+      BEGIN { ORS = ""; printf "\"" }
+      {
+        if (NR > 1) printf "\\n"
+        s = $0
+        gsub(/\\/, "\\\\", s); gsub(/"/, "\\\"", s)
+        gsub(/\t/, "\\t", s);  gsub(/\r/, "\\r", s)
+        printf "%s", s
+      }
+      END { printf "\"" }
+    '
   fi
 }
 
