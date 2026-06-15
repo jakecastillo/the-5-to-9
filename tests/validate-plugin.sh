@@ -5,7 +5,7 @@
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-cd "$ROOT"
+cd "$ROOT" || { echo "cannot cd to repo root: $ROOT" >&2; exit 1; }
 
 fail=0
 pass_n=0
