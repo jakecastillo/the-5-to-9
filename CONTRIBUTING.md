@@ -71,6 +71,30 @@ bash tests/run.sh               # same gate, CI entrypoint
 If you add a component (agent, command, skill, hook, script), the validator should
 cover it. If it doesn't, extend the validator in the same change.
 
+### Definition of Done
+
+A change is done — and only done — when all of these are true:
+
+- [ ] **The gate is green.** `bash tests/validate-plugin.sh` exits 0.
+- [ ] **The validator covers new components.** New agent/command/skill/hook/script? The
+      validator was extended in the same change.
+- [ ] **Scripts pass `bash -n`** and are Git-Bash-compatible (LF endings — see
+      `.editorconfig`); ported `.mjs` hooks pass `node --test`.
+- [ ] **Docs and specs are in sync.** `docs/superpowers/`, skill charters, and `AGENTS.md`
+      match the new behavior. Spec/code drift is a bug.
+- [ ] **`CHANGELOG.md` is updated** under `[Unreleased]` if behavior changed.
+- [ ] **No-clobber and the safety gate are respected.** Nothing writes a user repo's
+      `CLAUDE.md`/`AGENTS.md`; no new path lets an irreversible outward action slip the
+      hard gate.
+- [ ] **No secrets** in the diff or in any pasted logs.
+
+### Tests & TDD
+
+The test gate is the floor, not the ceiling. When you fix a bug or add behavior, add the
+test that would have caught it — a deny/allow case in `tests/gate-cases.txt`, a
+`node --test` case for ported hook logic, or an assertion in `tests/smoke-shift.sh`.
+Test-first is welcome and is how the gate corpus was built (it caught a real gap on day one).
+
 ---
 
 ## Conventions (non-negotiable)
@@ -139,6 +163,18 @@ subject imperative and under ~72 chars. Explain the *why* in the body when it is
 obvious.
 
 ---
+
+## AI-assisted contributions
+
+This project is partly self-hosting — the night crew works its own backlog — so
+AI-authored PRs are welcome and expected. Two rules keep them honest:
+
+1. **Disclose it.** If a shift (or any AI tool) wrote a meaningful part of the change,
+   say so in the PR description, or add an `Assisted-by:` trailer to the commit. No shame
+   in it; we just don't pretend a bot is a human.
+2. **A human reviews the diff.** Crew output gets read line-by-line before merge, same as
+   any human PR. The author — human or crew — doesn't grade their own homework. You are
+   responsible for everything in a PR you open, including the parts a model wrote.
 
 ## Pull request process
 

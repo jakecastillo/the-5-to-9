@@ -60,9 +60,14 @@ The crew is built **not** to take irreversible outward actions on its own.
 Please report security issues **privately** — do not open a public issue for a
 vulnerability.
 
-1. Preferred: open a private report via **GitHub Security Advisories**
+1. **Preferred:** open a private report via **GitHub Security Advisories**
    (the repository's *Security → Report a vulnerability* tab).
-2. Include: a description, reproduction steps, affected version, and potential impact.
+2. **Fallback:** if you can't use Advisories, email **jakecast@hawaii.edu** with
+   `[the-5-to-9 security]` in the subject.
+3. Include: a description, reproduction steps, affected version, and potential impact.
 
-We aim to acknowledge reports within a few days and will coordinate a fix and
-disclosure timeline with you. Thank you for helping keep the night shift honest.
+We aim to **acknowledge reports within 3 business days** and will coordinate a fix and
+a disclosure timeline with you (target: a fix or mitigation plan within 30 days for
+confirmed issues, faster for anything actively exploitable). Please give us a reasonable
+window to ship a fix before any public disclosure. Thank you for helping keep the night
+shift honest.
