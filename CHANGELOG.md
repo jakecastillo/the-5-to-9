@@ -7,7 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-_Nothing yet. The crew is on break._
+### Added
+
+- The executable engine: the four commands, the `running-the-shift` /
+  `shift-memory-beads` skills, all hooks (the irreversible-action gate, the Stop-hook
+  shift loop, SessionStart/UserPromptSubmit/PreCompact), the scripts, and the
+  `tests/validate-plugin.sh` gate (now also a 90-case gate corpus + an end-to-end
+  smoke test, run in CI).
+- **Node migration (Phase 0–1):** the irreversible gate now runs on zero-dependency
+  Node (`hooks/irreversible-gate.mjs`) behind a fail-closed bash launcher, with
+  `node --test` unit tests; orchestration scripts stay POSIX bash by design.
+- Community health: `.github/SUPPORT.md`, `.github/CODEOWNERS`, `GOVERNANCE.md`,
+  `CITATION.cff` ("Cite this repository"), `.editorconfig` (LF-enforced for the
+  Git-Bash POSIX scripts), and `.github/dependabot.yml` (github-actions ecosystem).
+- README badges (CI, license, version, Discussions) and a sample shift report.
+- Code of Conduct: a real confidential contact and the Contributor Covenant 2.1
+  enforcement ladder.
+
+### Changed
+
+- Hardened `validate.yml` with a least-privilege `permissions: contents: read` block;
+  `shellcheck` is now a blocking CI check.
+- Security policy: added an email fallback channel and an acknowledgement SLA.
+- Bug-report template now asks for the Claude Code version (matching CONTRIBUTING).
 
 ## [0.1.0] - 2026-06-14
 

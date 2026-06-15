@@ -1,0 +1,14 @@
+# CODEOWNERS — who's on call for review. The author doesn't grade their own
+# homework (that's the Health Inspector's whole job). With branch protection set
+# to "require review from Code Owners," this enforces it at the repo level.
+# https://docs.github.com/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Default owner for everything.
+*                       @jakecastillo
+
+# Load-bearing safety surfaces — eyes on these no matter what.
+/hooks/                 @jakecastillo
+/tests/                 @jakecastillo
+/.github/               @jakecastillo
+SECURITY.md             @jakecastillo
+CODE_OF_CONDUCT.md      @jakecastillo

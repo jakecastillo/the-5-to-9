@@ -2,6 +2,12 @@
 
 **The shift that works while you're off the clock.**
 
+[![validate](https://github.com/jakecastillo/the-5-to-9/actions/workflows/validate.yml/badge.svg)](https://github.com/jakecastillo/the-5-to-9/actions/workflows/validate.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Version](https://img.shields.io/badge/version-0.1.0-orange.svg)](CHANGELOG.md)
+[![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
+[![Discussions](https://img.shields.io/badge/Discussions-join-blueviolet.svg)](https://github.com/jakecastillo/the-5-to-9/discussions)
+
 The 5 to 9 is a Claude Code plugin that clocks in a night-shift crew of AI role-agents to work a [beads](https://github.com/steveyegge/beads) backlog in parallel and ralph-loop a repo to done — hands-off, with hard gates only on irreversible actions. You hand it a goal, it runs a tight service loop on a dedicated shift branch, and you read the shift report in the morning. Funny on the surface, rigorous underneath.
 
 > Status: **v0.1.0, early/experimental.** Use with caution and keep an eye on long runs (see [Status](#status)).

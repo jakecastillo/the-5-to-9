@@ -1,0 +1,21 @@
+# Dependabot keeps the night shift's tools current.
+# This repo is markdown + JSON + bash — no package manifest — so the only
+# updatable surface today is GitHub Actions. Add an `npm` block when the
+# Node.js port lands. https://docs.github.com/code-security/dependabot
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      # Match the repo's Conventional Commits rule.
+      prefix: "chore(ci)"
+    labels:
+      - "dependencies"
+      - "ci"
+    groups:
+      # One PR for routine action bumps instead of a pile of them.
+      github-actions:
+        patterns:
+          - "*"

@@ -1,0 +1,29 @@
+# EditorConfig — keep the kitchen clean. https://editorconfig.org
+# This project is POSIX bash, Git-Bash-compatible, developed on Windows.
+# LF endings are load-bearing: CRLF silently breaks the shell scripts the crew runs.
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 2
+
+# Shell scripts MUST be LF — the test gate runs them under Git Bash.
+[*.{sh,bash}]
+end_of_line = lf
+indent_style = space
+indent_size = 2
+
+[*.md]
+# Markdown uses trailing-space line breaks; don't strip them.
+trim_trailing_whitespace = false
+
+[*.{json,yml,yaml}]
+indent_style = space
+indent_size = 2
+
+[Makefile]
+indent_style = tab

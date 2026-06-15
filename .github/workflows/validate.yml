@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [main]
 
+# Least privilege: CI only needs to read the repo to run the gate.
+permissions:
+  contents: read
+
 jobs:
   validate:
     name: validate-plugin
