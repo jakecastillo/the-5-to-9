@@ -36,15 +36,15 @@ first. Never modify them. Instruction priority: target repo > The 5 to 9 > defau
 ## 3. Stand-up
 
 - **The Owner** shapes tonight's goal into one beads epic with crisp `--acceptance`.
-- **The Regular** sharpens it into testable criteria and cuts gold-plating.
-- **The Floor Manager** decomposes it into a dependency-ordered backlog (`blocks` /
+- **The Pit Boss** sharpens it into testable criteria and cuts gold-plating.
+- **The Pit Boss** decomposes it into a dependency-ordered backlog (`blocks` /
   parent-child edges only where work must wait).
 
 ## 4. Work the loop (capped)
 
 Run the service loop from the skill until `bd ready` is empty or the iteration cap is hit
-(default 30): `bd ready --claim` → Line Cook implements one bead TDD → mechanical gate →
-Health Inspector verifies independently → commit on the shift branch → `bd close` → repeat.
+(default 30): `bd ready --claim` → Dealer implements one bead TDD → mechanical gate →
+Floor Auditor verifies independently → commit on the shift branch → `bd close` → repeat.
 
 Reversible work proceeds. **Stop at the gate** for any irreversible outward action
 (deploy/publish/force-push/remote-delete/secret-destroy) and surface it for a human.

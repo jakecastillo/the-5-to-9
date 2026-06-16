@@ -26,12 +26,12 @@ Under Codex today there is one driver, not parallel subagents — so wear the ha
 and let beads be the shared state:
 
 - **The Owner** — strategy & goal-setting; turns the goal into shaped backlog items.
-- **The Floor Manager** — orchestrator/lead; picks what's ready, sequences the work.
-- **The Regular** — business analyst; voice of the user; sanity-checks scope.
-- **The Line Cook** — developer; TDD; works in an isolated worktree.
-- **The Health Inspector** — QA; independent verification; never trusts "it should work".
-- **The Bouncer** — security; owns the irreversible-action gate.
-- **The Janitor** — devops/CI; keeps the test gate green.
+- **The Pit Boss** — orchestrator/lead; picks what's ready, sequences the work.
+- **The Owner** — business analyst; voice of the user; sanity-checks scope.
+- **The Dealer** — developer; TDD; works in an isolated worktree.
+- **The Floor Auditor** — QA; independent verification; never trusts "it should work".
+- **The Eye in the Sky** — security; owns the irreversible-action gate.
+- **The Floorman** — devops/CI; keeps the test gate green.
 
 ## Set up the shift
 
@@ -50,11 +50,11 @@ Repeat until the backlog is empty or you hit the iteration cap (default **30**):
 
 1. **Claim** the next unit atomically: `bd ready --claim`. Only `blocks` / `parent-child`
    edges gate readiness; `discovered-from` is provenance, not a blocker.
-2. **Plan** as the Floor Manager; confirm scope as the Regular.
-3. **Implement** as the Line Cook in an isolated worktree. Write the test first.
+2. **Plan** as the Pit Boss; confirm scope as the Regular.
+3. **Implement** as the Dealer in an isolated worktree. Write the test first.
    Set `BEADS_DIR` to the main DB so the worktree finds the backlog. **Serialize writes** —
    beads' embedded store is single-writer; do not write the DB from two places at once.
-4. **Verify** as the Health Inspector: run the repo's test gate; it must pass on real
+4. **Verify** as the Floor Auditor: run the repo's test gate; it must pass on real
    output, not assertion-by-vibes. On red, file a bead and fix; don't mark done.
 5. **Commit** to the shift branch. Update the bead status and append durable notes to beads
    (memory lives in beads, not in this conversation).
@@ -67,7 +67,7 @@ When `bd ready` returns nothing, or the cap is reached, stop and clock out.
 Codex full-auto stops prompting, so **you** enforce restraint. Everything *reversible*
 proceeds without asking: file edits, commits, branches, PRs, and normal pushes to the shift
 branch. **Hard-stop and require explicit human approval before any irreversible OUTWARD
-action**, as the Bouncer:
+action**, as the Eye in the Sky:
 
 - deploying to prod or any remote environment;
 - publishing a release, tag, or package;

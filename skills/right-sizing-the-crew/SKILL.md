@@ -23,25 +23,25 @@ The 5 to 9 has 7 roles. Defaults below; rationale is why that tier is the floor 
 | Role | Job | Default model | Why this tier |
 | --- | --- | --- | --- |
 | The Owner | Executive / strategy & goal-setting | **opus** | Sets direction for the whole shift; a wrong goal wastes every downstream hour. Strategy is the highest-leverage, lowest-volume call — pay for it. |
-| The Floor Manager | Project manager / orchestrator (lead) | **sonnet** | Coordinates the crew and the backlog: claims work, sequences the DAG, routes blockers. High-volume coordination where Sonnet's speed/quality balance wins. |
-| The Regular | Business analyst (voice of the user) | **sonnet** | Translates intent into concrete, testable requirements. Needs solid reasoning, runs often enough that Opus would be wasteful. |
-| The Line Cook | Developer (TDD, isolated worktree) | **sonnet** | Writes code test-first in a sandbox. Most coding is well-scoped and reversible; Sonnet handles it cleanly and the Health Inspector catches misses. |
-| The Health Inspector | QA / independent verifier | **sonnet** | Independently checks the Line Cook's work against the spec. Verification is high-volume; Sonnet is the right floor — escalate when the gate is release-critical. |
-| The Bouncer | Security | **opus** | Adversarial review of irreversible/outward actions and the SECURITY policy. A missed security call is the most expensive error the crew can make — critic-grade model. |
-| The Janitor | Devops / CI-CD | **haiku** | Routine ops: run the suite, lint, format, wire CI, tidy. Mechanical and high-volume — Haiku is fast and cheap, and failures here are loud and reversible. |
+| The Pit Boss | Project manager / orchestrator (lead) | **sonnet** | Coordinates the crew and the backlog: claims work, sequences the DAG, routes blockers. High-volume coordination where Sonnet's speed/quality balance wins. |
+| The Cage Cashier | Integration / single-writer merge gate | **sonnet** | Reconciles each Dealer's work into the shift branch one at a time and is the sole writer to the store — the choke point that makes parallelism safe. Coordination/judgment work where Sonnet is the floor. |
+| The Dealer | Developer (TDD, isolated worktree) | **sonnet** | Writes code test-first in a sandbox. Most coding is well-scoped and reversible; Sonnet handles it cleanly and the Floor Auditor catches misses. |
+| The Floor Auditor | QA / independent verifier | **sonnet** | Independently checks the Dealer's work against the spec. Verification is high-volume; Sonnet is the right floor — escalate when the gate is release-critical. |
+| The Eye in the Sky | Security | **opus** | Adversarial review of irreversible/outward actions and the SECURITY policy. A missed security call is the most expensive error the crew can make — critic-grade model. |
+| The Floorman | Devops / CI-CD | **haiku** | Routine ops: run the suite, lint, format, wire CI, tidy. Mechanical and high-volume — Haiku is fast and cheap, and failures here are loud and reversible. |
 
-Pattern: **Opus = strategy + critic + security** (Owner, Bouncer) · **Sonnet = coordination + coding + QA** (Floor Manager, Regular, Line Cook, Health Inspector) · **Haiku = routine scans + ops** (Janitor).
+Pattern: **Opus = strategy + critic + security** (Owner, Eye in the Sky) · **Sonnet = coordination + coding + QA** (Pit Boss, Dealer, Floor Auditor, Cage Cashier) · **Haiku = routine scans + ops** (Floorman).
 
 ## Escalation triggers
 
 Bump one tier when a concrete signal appears. Common cases:
 
-- **Genuinely hard architecture → escalate the Line Cook to opus.** A nontrivial design (data migration, concurrency model, cross-cutting refactor) where a wrong shape is expensive to unwind. Sonnet codes; Opus designs the hard parts.
-- **Release-gating verification → escalate the Health Inspector to opus.** When the Inspector's pass/fail is the last gate before a release or an irreversible action, run the verifier at critic grade so a subtle miss doesn't ship.
+- **Genuinely hard architecture → escalate the Dealer to opus.** A nontrivial design (data migration, concurrency model, cross-cutting refactor) where a wrong shape is expensive to unwind. Sonnet codes; Opus designs the hard parts.
+- **Release-gating verification → escalate the Floor Auditor to opus.** When the Inspector's pass/fail is the last gate before a release or an irreversible action, run the verifier at critic grade so a subtle miss doesn't ship.
 - **The Owner keeps setting muddy goals → already opus; sharpen the prompt, not the model.** If strategy is thin, the fix is usually the goal/context, not a higher tier (it's already the top).
-- **A role keeps under-performing → escalate one tier and re-run.** Shallow analysis (Regular), repeated test-fixing churn (Line Cook), missed defects caught downstream (Health Inspector), flaky orchestration (Floor Manager): bump the offending role one tier and watch the signal.
-- **A role keeps over-performing with margin → de-escalate one tier.** Janitor never escalates by default; a consistently-clean Sonnet role can drop to Haiku for mechanical subsets.
-- **Security-sensitive or irreversible work touches a non-Bouncer role → loop in the opus Bouncer**, don't just upgrade the acting role. The gate belongs to the critic role.
+- **A role keeps under-performing → escalate one tier and re-run.** Shallow analysis (the Pit Boss), repeated test-fixing churn (Dealer), missed defects caught downstream (Floor Auditor), flaky orchestration (Pit Boss): bump the offending role one tier and watch the signal.
+- **A role keeps over-performing with margin → de-escalate one tier.** Floorman never escalates by default; a consistently-clean Sonnet role can drop to Haiku for mechanical subsets.
+- **Security-sensitive or irreversible work touches a non-Eye in the Sky role → loop in the opus Eye in the Sky**, don't just upgrade the acting role. The gate belongs to the critic role.
 
 ## How to override
 
@@ -57,7 +57,7 @@ Set the `model:` frontmatter field to one of the bare aliases: `opus`, `sonnet`,
 ```yaml
 ---
 name: the-line-cook
-model: opus   # escalated default: this Line Cook handles hard architecture
+model: opus   # escalated default: this Dealer handles hard architecture
 ---
 ```
 

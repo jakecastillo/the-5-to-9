@@ -23,12 +23,12 @@ irreversible actions. Funny on the surface, rigorous underneath.
 | Name | Role | Model |
 |------|------|-------|
 | The Owner | strategy & goal-setting | `opus` |
-| The Floor Manager | orchestrator / lead | `sonnet` |
-| The Regular | analyst (voice of the user) | `sonnet` |
-| The Line Cook | developer (TDD, isolated worktree) | `sonnet` |
-| The Health Inspector | QA / independent verifier | `sonnet` |
-| The Bouncer | security | `opus` |
-| The Janitor | devops / CI-CD | `haiku` |
+| The Pit Boss | orchestrator / lead | `sonnet` |
+| The Cage Cashier | integration / merge gate | `sonnet` |
+| The Dealer | developer (TDD, isolated worktree) | `sonnet` |
+| The Floor Auditor | QA / independent verifier | `sonnet` |
+| The Eye in the Sky | security | `opus` |
+| The Floorman | devops / CI-CD | `haiku` |
 
 ## Two ways to run
 

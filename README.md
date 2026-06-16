@@ -32,12 +32,12 @@ If a step doesn't make the code more correct or the loop more honest, it's not i
 | Name | Role | Default model |
 |------|------|---------------|
 | **The Owner** | Executive — strategy & goal-setting | `opus` |
-| **The Floor Manager** | Project manager / orchestrator (lead) | `sonnet` |
-| **The Regular** | Business analyst (voice of the user) | `sonnet` |
-| **The Line Cook** | Developer (TDD, works in an isolated worktree) | `sonnet` |
-| **The Health Inspector** | QA / independent verifier | `sonnet` |
-| **The Bouncer** | Security | `opus` |
-| **The Janitor** | DevOps / CI-CD | `haiku` |
+| **The Pit Boss** | Project manager / orchestrator (lead) | `sonnet` |
+| **The Cage Cashier** | Integration / single-writer merge gate | `sonnet` |
+| **The Dealer** | Developer (TDD, works in an isolated worktree) | `sonnet` |
+| **The Floor Auditor** | QA / independent verifier | `sonnet` |
+| **The Eye in the Sky** | Security | `opus` |
+| **The Floorman** | DevOps / CI-CD | `haiku` |
 
 Right-sized models for right-sized jobs: the heavy thinkers (strategy, security) get `opus`, the steady workers get `sonnet`, the chores get `haiku`.
 
@@ -46,12 +46,12 @@ Right-sized models for right-sized jobs: the heavy thinkers (strategy, security)
 ## How a shift works
 
 1. **Clock in.** `/clock-in [goal]` — the crew shows up and reads the room.
-2. **Stand-up.** The Owner and the Regular refine the goal into real, testable outcomes. The Floor Manager turns those into beads with dependencies.
+2. **Stand-up.** The Owner refines the goal into real, testable outcomes. The Pit Boss turns those into beads with dependencies.
 3. **The service loop** (repeat until the backlog is clear):
    - `bd ready --claim` — a fresh worker atomically claims the next unblocked bead.
-   - The Line Cook does **one** bead, TDD, in an isolated worktree.
+   - The Dealer does **one** bead, TDD, in an isolated worktree.
    - **Mechanical gate** — the build/tests/lint run. No green, no pass.
-   - **Independent QA** — the Health Inspector verifies the work against the bead's acceptance criteria. The author doesn't grade their own homework.
+   - **Independent QA** — the Floor Auditor verifies the work against the bead's acceptance criteria. The author doesn't grade their own homework.
    - **Close** the bead, record what happened in beads memory, and go back to `bd ready`.
 4. **Clock out.** `/clock-out` ends the shift and prints a report: what shipped, what's blocked, what's next.
 5. **Refine scope** and run the next shift.

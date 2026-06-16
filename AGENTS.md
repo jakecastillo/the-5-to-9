@@ -58,8 +58,8 @@ There is no build step. "Green" = `validate-plugin.sh` exits 0. CI runs it on pu
 
 ## Right-sizing models (defaults; overridable)
 
-Opus → strategy/critic/security (Owner, Bouncer). Sonnet → coordination/coding/QA
-(Floor Manager, Regular, Line Cook, Health Inspector). Haiku → routine scans/ops (Janitor).
+Opus → strategy/critic/security (Owner, Eye in the Sky). Sonnet → coordination/coding/QA
+(Pit Boss, Dealer, Floor Auditor, Cage Cashier). Haiku → routine scans/ops (Floorman).
 
 <!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:970c3bf2 -->
 ## Beads Issue Tracker

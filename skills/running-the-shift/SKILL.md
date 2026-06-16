@@ -20,12 +20,12 @@ Seven roles, each a subagent with one job and a real boundary. Wear the hat the 
 calls for; do **not** convene a standup — work lives in beads, not in chatter.
 
 - **The Owner** — sets the one goal + acceptance. Rare, decisive. (`opus`)
-- **The Floor Manager** — orchestrator/lead: decompose → wire deps → dispatch → integrate. (`sonnet`)
-- **The Regular** — analyst: testable acceptance, scope reality-check, prior-art scouting. (`sonnet`)
-- **The Line Cook** — developer: one bead, TDD, isolated worktree. (`sonnet`)
-- **The Health Inspector** — QA: independent verification against the rubric. (`sonnet`)
-- **The Bouncer** — security: secrets/deps/authz scan; owns the release block. (`opus`)
-- **The Janitor** — devops/CI: keep the gate green, preflight, merge-slot, release prep. (`haiku`)
+- **The Pit Boss** — orchestrator/lead: decompose → wire deps → dispatch → integrate. (`sonnet`)
+- **The Cage Cashier** — integration: the single-writer merge gate; reconciles one bead at a time. (`sonnet`)
+- **The Dealer** — developer: one bead, TDD, isolated worktree. (`sonnet`)
+- **The Floor Auditor** — QA: independent verification against the rubric. (`sonnet`)
+- **The Eye in the Sky** — security: secrets/deps/authz scan; owns the release block. (`opus`)
+- **The Floorman** — devops/CI: keep the gate green, preflight, release prep. (`haiku`)
 
 Models are defaults — see the `right-sizing-the-crew` skill to escalate/override.
 
@@ -43,8 +43,8 @@ Models are defaults — see the `right-sizing-the-crew` skill to escalate/overri
 
 ## Stand-up (shape the work, once)
 
-The Owner turns intent into **one goal** with crisp `--acceptance`. The Regular sharpens
-it into testable criteria and cuts gold-plating. The Floor Manager builds the bead graph:
+The Owner turns intent into **one goal** with crisp `--acceptance`. The Owner sharpens
+it into testable criteria and cuts gold-plating. The Pit Boss builds the bead graph:
 epics → features → tasks, wired with real `blocks` / parent-child edges (only those gate
 `bd ready`; `discovered-from` is provenance, not a blocker).
 
@@ -54,24 +54,24 @@ A dumb, honest heartbeat over a smart backlog. Repeat until `bd ready` is empty 
 iteration cap is hit (default **30**):
 
 1. **Claim** atomically: `bd ready --claim --json`. No two workers grab the same bead.
-2. **Plan** (Floor Manager) → **confirm scope** (Regular, if fuzzy).
-3. **Implement** (Line Cook) — **one** bead, **test first**. Write a failing test that
+2. **Plan** (Pit Boss) → **confirm scope** with the Owner if fuzzy.
+3. **Implement** (Dealer) — **one** bead, **test first**. Write a failing test that
    encodes the acceptance criteria and fails on a *stub* (no placeholder cheating). Then
    make it pass; refactor. Work in an isolated worktree when assigned (`bd worktree`; export
    `BEADS_DIR` so the worktree finds the main DB). **Serialize writes** — beads' store is
    single-writer; never write the DB from two places at once.
 4. **Mechanical gate** — run the repo's real typecheck/lint/test/build. Green or it doesn't
    close. This is non-fakeable backpressure: no green, no close.
-5. **Independent QA** (Health Inspector) — verify against the bead's acceptance with a fixed
+5. **Independent QA** (Floor Auditor) — verify against the bead's acceptance with a fixed
    rubric. **The author never grades their own homework.** On fail, file a `bug` bead that
    `blocks` the feature and re-queue; don't quietly fix.
-6. **Security pass** (Bouncer) when the bead touches secrets/deps/authz/outward actions.
+6. **Security pass** (Eye in the Sky) when the bead touches secrets/deps/authz/outward actions.
 7. **Commit** to the shift branch (message says *why*) → `bd close <id>` → record durable
    notes in beads (memory lives in beads, not this conversation).
 8. **Record discovered work** as fresh beads with `discovered-from` edges.
 
-**Read-parallel, write-serial.** Fan out independent reads/analysis (Regular research,
-Bouncer scan, Health Inspector test design) together. Serialize all code writes; isolate
+**Read-parallel, write-serial.** Fan out independent reads/analysis (prior-art research,
+Eye in the Sky scan, Floor Auditor test design) together. Serialize all code writes; isolate
 only genuinely-independent edits in worktrees. Spawning a role costs ~15× the tokens of
 doing the read inline — right-size and reserve it.
 

@@ -37,8 +37,8 @@ Report, briefly:
 
 ## 3. Independent sign-off
 
-Completion is not self-graded. Confirm the **Health Inspector** verified the closed work
-against acceptance, the **Bouncer** has no open `security` block, and the mechanical gate is
+Completion is not self-graded. Confirm the **Floor Auditor** verified the closed work
+against acceptance, the **Eye in the Sky** has no open `security` block, and the mechanical gate is
 genuinely green. If any of those is missing, say so plainly — the shift is *paused*, not done.
 
 Leave the kitchen clean: shift branch committed, JSONL export updated, nothing half-plated.

@@ -67,7 +67,7 @@ beads' embedded store is **single-writer** — serialize writes. For genuinely i
 work, isolate each writer:
 
 ```bash
-bd worktree <id>                # isolated git worktree for one Line Cook
+bd worktree <id>                # isolated git worktree for one Dealer
 export BEADS_DIR="$REPO/.beads" # so the detached worktree finds the MAIN backlog
 bd merge-slot                   # serialized merge gate — one integration at a time
 ```
@@ -91,16 +91,16 @@ next fresh-context iteration picks it up.
 
 Keep labels few and meaningful:
 
-- `security` — owned by the Bouncer; a P0 `security` bug `blocks` the release epic.
+- `security` — owned by the Eye in the Sky; a P0 `security` bug `blocks` the release epic.
 - `release` — the ship epic; the gate hangs off it.
 - `gate` — marks a bead whose close requires the irreversible-action human gate.
-- `chore` — hygiene/devops debt (the Janitor).
+- `chore` — hygiene/devops debt (the Floorman).
 - `discovered` — work the crew surfaced mid-shift (paired with a `discovered-from` edge).
 
 ## Ship hygiene
 
 ```bash
-bd preflight     # PR-readiness check (the Janitor runs this before integrating)
+bd preflight     # PR-readiness check (the Floorman runs this before integrating)
 bd status        # progress snapshot (the Owner reads this to judge "done")
 bd github        # GitHub sync helpers
 ```
