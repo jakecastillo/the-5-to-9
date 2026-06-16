@@ -1,9 +1,9 @@
-import { BD_WRITE_DENY, IRREVERSIBLE_DENY, type WorkerAdapter } from './adapters/adapter.ts';
+import type { WorkerAdapter } from './adapters/adapter.ts';
 import type { Beads } from './beads.ts';
 import type { Journal } from './journal.ts';
 import type { BudgetLedger, RunLog } from './observability.ts';
 import { validateWorkerOutcome } from './schema.ts';
-import type { Bead, WorkerSpec } from './types.ts';
+import { specFor } from './worker-spec.ts';
 
 export interface TickDeps {
   beads: Beads;
@@ -23,23 +23,6 @@ export interface TickResult {
   closed?: string | null;
   skipped?: string;
   reason?: string;
-}
-
-function specFor(bead: Bead, role: 'dealer' | 'auditor', worktree: string): WorkerSpec {
-  return {
-    beadId: bead.id,
-    role,
-    model: 'sonnet',
-    worktree,
-    systemPrompt:
-      role === 'dealer'
-        ? 'You are a Dealer: implement one bead test-first.'
-        : 'You are the Floor Auditor: verify against acceptance; you did NOT implement this.',
-    task: `Bead ${bead.id}. Emit a WorkerOutcome JSON.`,
-    allowedTools: role === 'auditor' ? ['Read', 'Bash'] : ['Read', 'Edit', 'Write', 'Bash'],
-    // Fire under bypassPermissions; the worker has no bd-write path regardless (spec §4.1).
-    disallowedTools: [...BD_WRITE_DENY, ...IRREVERSIBLE_DENY],
-  };
 }
 
 /** One deterministic single-bead tick. The driver — not an LLM — sequences this (spec §3.1/§5.2). */
