@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # The 5 to 9 — the fresh-process night-shift loop (the hands-off engine).
 # Each iteration restarts the agent with CLEAN context, works ONE bead, exits.
-# Always capped (default 30). Git-Bash-compatible. Reversible work only.
+# Always guarded. Git-Bash-compatible. Reversible work only.
 #
 # usage: night-shift.sh [--max-iterations N] [--goal "..."] [--dry-run]
 #   --max-iterations N   OPTIONAL iteration ceiling (>= 1). Omitted = uncapped:
@@ -9,10 +9,14 @@
 #   --goal "..."         optional standing goal woven into each iteration's prompt
 #   --dry-run            run the loop logic without invoking the agent (for tests)
 # env: FIVE_TO_NINE_AGENT_CMD (override the agent invocation; gets $FIVE_TO_NINE_PROMPT),
-#      FIVE_TO_NINE_MAX_ITER, FIVE_TO_NINE_NOPROGRESS (stall threshold, default 3).
+#      FIVE_TO_NINE_MAX_ITER, FIVE_TO_NINE_NOPROGRESS (stall threshold, default 3),
+#      FIVE_TO_NINE_STUCK_BEAD_THRESHOLD (default 1),
+#      FIVE_TO_NINE_STUCK_BEAD_MODEL (default opus).
 set -uo pipefail
 
 F9_HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+F9_ROOT="$(cd "$F9_HERE/.." && pwd)"
+export CLAUDE_PLUGIN_ROOT="$F9_ROOT"
 # shellcheck source=lib/common.sh
 . "$F9_HERE/lib/common.sh"
 # shellcheck source=beads-helpers.sh
@@ -55,32 +59,89 @@ EOF
 )"
 
 run_agent() {
-  local p="$1"
+  local p="$1" model="${2:-}"
   if [[ -n "${FIVE_TO_NINE_AGENT_CMD:-}" ]]; then
-    FIVE_TO_NINE_PROMPT="$p" bash -c "$FIVE_TO_NINE_AGENT_CMD"
+    if [[ -n "$model" ]]; then
+      FIVE_TO_NINE_PROMPT="$p" CLAUDE_CODE_SUBAGENT_MODEL="$model" FIVE_TO_NINE_ESCALATED_MODEL="$model" bash -c "$FIVE_TO_NINE_AGENT_CMD"
+    else
+      FIVE_TO_NINE_PROMPT="$p" bash -c "$FIVE_TO_NINE_AGENT_CMD"
+    fi
   elif f9_have claude; then
-    claude -p "$p" --dangerously-skip-permissions
+    if [[ -n "$model" ]]; then
+      CLAUDE_CODE_SUBAGENT_MODEL="$model" FIVE_TO_NINE_ESCALATED_MODEL="$model" claude -p "$p" --dangerously-skip-permissions
+    else
+      claude -p "$p" --dangerously-skip-permissions
+    fi
   else
     f9_err "no agent CLI found — set FIVE_TO_NINE_AGENT_CMD or install 'claude'"
     return 127
   fi
 }
 
+gate_self_check() {
+  local out
+  out="$(
+    printf '{"tool_input":{"command":"git push --force origin HEAD"}}' \
+      | CLAUDE_PLUGIN_ROOT="$F9_ROOT" bash "$F9_ROOT/hooks/irreversible-gate.sh" 2>/dev/null
+  )" || true
+  if printf '%s' "$out" | grep -q '"permissionDecision":"deny"'; then
+    f9_log "irreversible gate self-check passed"
+    return 0
+  fi
+  f9_err "irreversible gate self-check failed — refusing to launch hands-off workers"
+  return 1
+}
+
+first_ready_id() {
+  f9_have_beads || { printf ''; return 1; }
+  local json
+  json="$(bd ready --json 2>/dev/null)" || { printf ''; return 1; }
+  if f9_have jq; then
+    printf '%s\n' "$json" | jq -r '.[0].id // empty' 2>/dev/null
+  else
+    printf '%s\n' "$json" \
+      | grep -o '"id"[[:space:]]*:[[:space:]]*"[^"]*"' \
+      | head -n1 \
+      | sed 's/.*"id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/'
+  fi
+}
+
+gate_self_check || exit 3
+
 f9_log "night shift starting — $([[ -n "$max_iter" ]] && echo "cap ${max_iter} iteration(s)" || echo "uncapped (until QUEUE-EMPTY or no-progress stall)")$([[ $dry_run -eq 1 ]] && echo ' (dry-run)')"
-iter=0; prev_closed=-1; stall=0; stall_max="${FIVE_TO_NINE_NOPROGRESS:-3}"
+iter=0; prev_progress=""; stall=0; stall_max="${FIVE_TO_NINE_NOPROGRESS:-3}"
+stuck_threshold="${FIVE_TO_NINE_STUCK_BEAD_THRESHOLD:-1}"
+if ! [[ "$stuck_threshold" =~ ^[0-9]+$ ]] || (( stuck_threshold < 1 )); then
+  f9_warn "FIVE_TO_NINE_STUCK_BEAD_THRESHOLD must be >= 1 (got: ${stuck_threshold}); using 1"
+  stuck_threshold=1
+fi
+stuck_model="${FIVE_TO_NINE_STUCK_BEAD_MODEL:-opus}"
+stuck_id=""; stuck_failures=0; stuck_escalated=0
 
 while [[ -z "$max_iter" ]] || (( iter < max_iter )); do
   ready="$(f9_ready_count 2>/dev/null || echo 0)"; [[ "$ready" =~ ^[0-9]+$ ]] || ready=0
   if (( ready == 0 )); then
-    f9_log "QUEUE-EMPTY — backlog drained after ${iter} iteration(s)"; break
+    if [[ -n "$stuck_id" && "$stuck_escalated" -eq 1 && "$dry_run" -eq 0 ]]; then
+      ready_id="$stuck_id"
+      f9_warn "stuck-bead: no ready beads; resuming in-progress bead ${stuck_id} for escalated retry"
+    else
+      f9_log "QUEUE-EMPTY — backlog drained after ${iter} iteration(s)"; break
+    fi
+  else
+    ready_id="$(first_ready_id 2>/dev/null || true)"
   fi
 
   closed="$(f9_bd_closed_count 2>/dev/null || true)"
-  if [[ -n "$closed" ]]; then
-    if [[ "$closed" == "$prev_closed" ]]; then stall=$((stall+1)); else stall=0; fi
-    prev_closed="$closed"
+  open="$(f9_bd_open_count 2>/dev/null || true)"
+  progress_sig=""
+  if [[ -n "$closed" || -n "$open" ]]; then
+    progress_sig="closed=${closed:-?}, open=${open:-?}"
+  fi
+  if [[ -n "$progress_sig" ]]; then
+    if [[ "$progress_sig" == "$prev_progress" ]]; then stall=$((stall+1)); else stall=0; fi
+    prev_progress="$progress_sig"
     if (( stall >= stall_max )); then
-      f9_warn "no-progress: closed count stuck at ${closed} for ${stall} iteration(s) — stopping"; break
+      f9_warn "no-progress: ${progress_sig} for ${stall} iteration(s) — stopping"; break
     fi
   fi
 
@@ -89,7 +150,50 @@ while [[ -z "$max_iter" ]] || (( iter < max_iter )); do
   if (( dry_run == 1 )); then
     f9_log "[dry-run] would advance one bead (agent not invoked)"; continue
   fi
-  run_agent "$PROMPT" || f9_warn "iteration ${iter}: agent returned nonzero (continuing)"
+
+  agent_prompt="$PROMPT"
+  agent_model=""
+  escalated_this_iter=0
+  if [[ -n "$ready_id" && "$ready_id" == "$stuck_id" && "$stuck_escalated" -eq 1 ]]; then
+    agent_model="$stuck_model"
+    escalated_this_iter=1
+    agent_prompt="${PROMPT}
+
+Stuck-bead escalation: bead ${ready_id} has failed ${stuck_failures} consecutive hands-off attempt(s). Bump the relevant role one tier by using CLAUDE_CODE_SUBAGENT_MODEL=${stuck_model}. Resume bead ${ready_id} directly, even if it is already in_progress; do not run bd ready --claim for this escalated retry. Keep scope bounded, and surface the exact failure instead of retrying again if the gate still fails."
+    f9_warn "stuck-bead: retrying ${ready_id} with model tier ${stuck_model}"
+  fi
+
+  if run_agent "$agent_prompt" "$agent_model"; then
+    if [[ -n "$ready_id" && "$ready_id" == "$stuck_id" ]]; then
+      stuck_id=""; stuck_failures=0; stuck_escalated=0
+    fi
+  else
+    rc=$?
+    if [[ -z "$ready_id" ]]; then
+      f9_warn "iteration ${iter}: agent returned nonzero (exit ${rc}); could not identify ready bead for stuck tracking"
+      continue
+    fi
+
+    if [[ "$ready_id" == "$stuck_id" ]]; then
+      stuck_failures=$((stuck_failures + 1))
+    else
+      stuck_id="$ready_id"
+      stuck_failures=1
+      stuck_escalated=0
+    fi
+
+    if (( escalated_this_iter == 1 )); then
+      f9_warn "stuck-bead: ${ready_id} failed after escalation to ${stuck_model} (exit ${rc}) — surfacing"
+      break
+    fi
+
+    if (( stuck_failures >= stuck_threshold )); then
+      stuck_escalated=1
+      f9_warn "stuck-bead: ${ready_id} failed ${stuck_failures} consecutive attempt(s) — escalating next attempt to ${stuck_model}"
+    else
+      f9_warn "iteration ${iter}: agent returned nonzero (exit ${rc}; continuing)"
+    fi
+  fi
 done
 
 f9_log "night shift ended after ${iter} iteration(s)"

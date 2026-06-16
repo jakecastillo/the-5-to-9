@@ -203,7 +203,16 @@ else
   note "node not installed — node --test skipped (CI runs it)"
 fi
 
-# ── 5e. driver/ TypeScript checks (typecheck + lint + tests; skipped if toolchain absent) ─
+# ── 5e. night-shift loop mechanics ───────────────────────────────────────────
+head_ "night-shift loop"
+ns_out="$(bash "$ROOT/tests/night-shift-test.sh" 2>&1)"; ns_rc=$?
+if [[ "$ns_rc" -eq 0 ]]; then
+  ok "$(printf '%s' "$ns_out" | tail -n1)"
+else
+  bad "night-shift loop regressed:"; printf '%s\n' "$ns_out" | sed 's/^/   /'
+fi
+
+# ── 5f. driver/ TypeScript checks (typecheck + lint + tests; skipped if toolchain absent) ─
 head_ "driver (TypeScript)"
 if [[ -d "$ROOT/driver" ]] && have node && have pnpm; then
   drv_out="$(cd "$ROOT/driver" && pnpm install --frozen-lockfile >/dev/null 2>&1 && pnpm run typecheck 2>&1 && pnpm run lint 2>&1 && pnpm test 2>&1)"; drv_rc=$?
