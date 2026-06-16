@@ -22,6 +22,7 @@ required=(
   ".claude-plugin/plugin.json" ".claude-plugin/marketplace.json"
   ".codex-plugin/plugin.json" ".cursor-plugin/plugin.json"
   ".agents/plugins/marketplace.json"
+  ".agents/plugins/the-5-to-9/.codex-plugin/plugin.json"
   "agents/the-owner.md" "agents/the-pit-boss.md" "agents/the-dealer.md"
   "agents/the-floor-auditor.md" "agents/the-eye-in-the-sky.md" "agents/the-cage-cashier.md"
   "agents/the-floorman.md"
@@ -65,24 +66,34 @@ else
   note "jq not found — skipping JSON validation (CI installs jq)"
 fi
 
-# ── 2b. Codex marketplace manifest (native `codex plugin add`) ───────────────
-# Codex (0.140.0+) reads its marketplace from .agents/plugins/marketplace.json — NOT
-# .claude-plugin/. The plugin must be listed there and declare skills in its manifest.
-head_ "Codex marketplace"
+# ── 2b. Codex native plugin (`codex plugin add`) ─────────────────────────────
+# Codex (0.140.0+) reads its marketplace from .agents/plugins/marketplace.json and COPIES
+# the plugin's subdir into a cache on install — so the plugin must live in a SUBDIR (not the
+# repo root, which doesn't resolve) and its skills must live INSIDE that subdir (external
+# paths don't survive the copy). The subdir skills are kept byte-in-sync with canonical
+# skills/ (drift = RED).
+head_ "Codex native plugin"
+cxdir=".agents/plugins/the-5-to-9"
 if have jq; then
   cmf=".agents/plugins/marketplace.json"
-  if [[ -f "$cmf" ]] && jq -e '.plugins[] | select(.name=="the-5-to-9")' "$cmf" >/dev/null 2>&1; then
-    ok "Codex marketplace lists the the-5-to-9 plugin"
+  if jq -e '.plugins[] | select(.name=="the-5-to-9") | select(.source.path | test("the-5-to-9$"))' "$cmf" >/dev/null 2>&1; then
+    ok "Codex marketplace lists the-5-to-9 → its plugin subdir"
   else
-    bad "Codex marketplace manifest ($cmf) missing or does not list the the-5-to-9 plugin"
+    bad "Codex marketplace ($cmf) must list the-5-to-9 with source.path → $cxdir (a subdir, not the repo root)"
   fi
-  if jq -e '.skills' .codex-plugin/plugin.json >/dev/null 2>&1; then
-    ok ".codex-plugin/plugin.json declares skills (Codex exposes them on install)"
+  if jq -e '.skills' "$cxdir/.codex-plugin/plugin.json" >/dev/null 2>&1; then
+    ok "Codex plugin manifest declares skills"
   else
-    bad ".codex-plugin/plugin.json must declare \"skills\" so Codex exposes them"
+    bad "$cxdir/.codex-plugin/plugin.json missing or does not declare \"skills\""
   fi
 else
-  note "jq not found — skipping Codex marketplace checks (CI installs jq)"
+  note "jq not found — skipping Codex manifest checks (CI installs jq)"
+fi
+# Skills inside the subdir must match canonical skills/ byte-for-byte (no drift).
+if [[ -d "$cxdir/skills" ]] && diff -r skills "$cxdir/skills" >/dev/null 2>&1; then
+  ok "Codex plugin skills are in sync with canonical skills/"
+else
+  bad "Codex plugin skills out of sync — run: rm -rf $cxdir/skills && cp -R skills $cxdir/skills"
 fi
 
 # ── 3. Frontmatter (name + description) ──────────────────────────────────────

@@ -19,7 +19,6 @@
     "night-shift",
     "codex"
   ],
-  "skills": "./skills/",
   "interface": {
     "displayName": "The 5 to 9",
     "shortDescription": "The shift that works while you're off the clock.",

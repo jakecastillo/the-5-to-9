@@ -8,7 +8,7 @@
       "name": "the-5-to-9",
       "source": {
         "source": "local",
-        "path": "."
+        "path": "./.agents/plugins/the-5-to-9"
       },
       "policy": {
         "installation": "AVAILABLE",
