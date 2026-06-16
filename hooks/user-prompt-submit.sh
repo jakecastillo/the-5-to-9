@@ -2,6 +2,9 @@
 # The 5 to 9 — UserPromptSubmit hook: detect a trigger phrase and inject the shift
 # bootstrap as ADDITIVE context. Purely additive — never edits the user's files.
 # Always exits 0. Git-Bash-compatible.
+#
+# JSON envelope is built by hooks/json-context.sh (which dispatches to the zero-dep
+# Node helper when node is present, and falls back to bash f9_json_string when not).
 
 F9_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 # shellcheck source=../scripts/lib/common.sh
@@ -19,7 +22,6 @@ if [[ "$prompt" =~ (clock[[:space:]]+in|night[[:space:]]+shift|5[[:space:]]+to[[
   else
     note="The 5 to 9 trigger detected. To start a night shift, invoke the running-the-shift skill (or run /clock-in [goal]). The crew reads the repo's own CLAUDE.md/AGENTS.md/CONTRIBUTING and OBEYS them first (never modifies them), works a beads backlog on a dedicated shift branch, caps its loop, and hard-stops only on irreversible outward actions. Instruction priority: this repo > The 5 to 9 > defaults."
   fi
-  ctx="$(printf '%s' "$note" | f9_json_string)"
-  printf '{"hookSpecificOutput":{"hookEventName":"UserPromptSubmit","additionalContext":%s}}\n' "$ctx"
+  printf '%s' "$note" | bash "$F9_ROOT/hooks/json-context.sh" "UserPromptSubmit"
 fi
 exit 0
