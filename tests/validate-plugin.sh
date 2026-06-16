@@ -113,6 +113,43 @@ while IFS= read -r f; do fm_files+=("$f"); done < <(
 for f in "${fm_files[@]}"; do check_fm "$f"; done
 ok "frontmatter checked on ${#fm_files[@]} component(s)"
 
+# ── 3b. Agent voice belongs in bodies, not always-on frontmatter ──────────────
+head_ "agent voice budget"
+voice_bad=0
+agent_n=0
+for f in agents/*.md; do
+  [[ -f "$f" ]] || continue
+  agent_n=$((agent_n + 1))
+  fm="$(awk 'NR==1{next} /^---[[:space:]]*$/{exit} {print}' "$f")"
+  desc="$(printf '%s\n' "$fm" | awk '/^description:[[:space:]]*/{sub(/^description:[[:space:]]*/, ""); print; exit}')"
+  desc_words="$(printf '%s\n' "$desc" | wc -w | tr -d ' ')"
+  if [[ "$desc_words" -gt 32 ]]; then
+    bad "agent description too long (${desc_words} words; keep flavor out of frontmatter): $f"
+    voice_bad=1
+  fi
+
+  if ! grep -q '^## Voice$' "$f"; then
+    bad "agent missing on-invoke voice section: $f"
+    voice_bad=1
+  fi
+
+  anchor=""
+  case "$f" in
+    agents/the-owner.md) anchor="holds the license" ;;
+    agents/the-pit-boss.md) anchor="whole board" ;;
+    agents/the-cage-cashier.md) anchor="one window" ;;
+    agents/the-dealer.md) anchor="hand by hand" ;;
+    agents/the-floor-auditor.md) anchor="counts twice" ;;
+    agents/the-eye-in-the-sky.md) anchor="freezes the room" ;;
+    agents/the-floorman.md) anchor="release cart" ;;
+  esac
+  if [[ -n "$anchor" ]] && ! grep -qiF "$anchor" "$f"; then
+    bad "agent voice missing role anchor '$anchor': $f"
+    voice_bad=1
+  fi
+done
+[[ "$voice_bad" -eq 0 ]] && ok "agent frontmatter is compact; ${agent_n} body voice section(s) carry role-specific flavor"
+
 # ── 4. Shell syntax (bash -n) ────────────────────────────────────────────────
 head_ "bash -n"
 sh_bad=0; sh_n=0

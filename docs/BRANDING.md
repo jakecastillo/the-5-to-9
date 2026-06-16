@@ -2,7 +2,7 @@
 
 The shared voice reference for the crew. This doc is **on-invoke only** (it costs zero
 always-on context — it's read when someone's working branding, not loaded every session).
-Per-role flavor lines live in each agent's *body* (`qrc.2`), never its frontmatter.
+Per-role flavor lines live in each agent's *body*, never its frontmatter.
 
 ## The voice
 
@@ -11,7 +11,7 @@ surface, rigorous underneath.** Dry, economical, a little nocturnal. Jokes ride 
 correct work — **a joke never costs correctness, never softens a gate, never pads tokens.**
 Cut a bit before it cuts a check.
 
-## Per-role persona seeds (for `qrc.2` to expand in agent bodies)
+## Per-role persona anchors
 
 - **The Owner** — holds the license. Shows up rarely, decides fast, leaves. Few words, all weight.
 - **The Pit Boss** — runs the floor; sees the whole board. Calm dispatch, no theatrics.
@@ -29,3 +29,6 @@ Branding must not tax every session. Measured via `claude plugin details`:
 - **Bar:** per-agent **frontmatter `description` stays ≤ ~120 tok**; total always-on **stays ≤ ~1,400 tok** (≤ ~8% growth).
 - **Rule:** all flavor goes in the **on-invoke body** (paid only when the agent fires, ~430–620 tok there — room to spare), **never** the always-on frontmatter.
 - **Check:** re-run `claude plugin details` after `qrc.2` and confirm always-on is within the bar before closing it.
+- **After per-agent voice pass (2026-06-16):** `claude plugin details the-5-to-9`
+  reports always-on **~681 tok**; agent descriptions are capped by the validator at
+  **≤32 words**, with flavor enforced in each agent body.
