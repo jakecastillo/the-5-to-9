@@ -21,6 +21,7 @@ head_ "structure"
 required=(
   ".claude-plugin/plugin.json" ".claude-plugin/marketplace.json"
   ".codex-plugin/plugin.json" ".cursor-plugin/plugin.json"
+  ".agents/plugins/marketplace.json"
   "agents/the-owner.md" "agents/the-pit-boss.md" "agents/the-dealer.md"
   "agents/the-floor-auditor.md" "agents/the-eye-in-the-sky.md" "agents/the-cage-cashier.md"
   "agents/the-floorman.md"
@@ -61,6 +62,26 @@ if have jq; then
   jq -e '.hooks.SessionStart' hooks/hooks.json >/dev/null 2>&1 && ok "hooks.json declares the five events"
 else
   note "jq not found — skipping JSON validation (CI installs jq)"
+fi
+
+# ── 2b. Codex marketplace manifest (native `codex plugin add`) ───────────────
+# Codex (0.140.0+) reads its marketplace from .agents/plugins/marketplace.json — NOT
+# .claude-plugin/. The plugin must be listed there and declare skills in its manifest.
+head_ "Codex marketplace"
+if have jq; then
+  cmf=".agents/plugins/marketplace.json"
+  if [[ -f "$cmf" ]] && jq -e '.plugins[] | select(.name=="the-5-to-9")' "$cmf" >/dev/null 2>&1; then
+    ok "Codex marketplace lists the the-5-to-9 plugin"
+  else
+    bad "Codex marketplace manifest ($cmf) missing or does not list the the-5-to-9 plugin"
+  fi
+  if jq -e '.skills' .codex-plugin/plugin.json >/dev/null 2>&1; then
+    ok ".codex-plugin/plugin.json declares skills (Codex exposes them on install)"
+  else
+    bad ".codex-plugin/plugin.json must declare \"skills\" so Codex exposes them"
+  fi
+else
+  note "jq not found — skipping Codex marketplace checks (CI installs jq)"
 fi
 
 # ── 3. Frontmatter (name + description) ──────────────────────────────────────
