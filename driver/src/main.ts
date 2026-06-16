@@ -10,6 +10,7 @@ import { Journal } from './journal.ts';
 import { type ShiftReport, runShift } from './loop.ts';
 import { BudgetLedger, RunLog } from './observability.ts';
 import { type TickDeps, runSingleBeadTick } from './orchestrator.ts';
+import { type ParallelTickDeps, runParallelTick } from './parallel.ts';
 import { Worktrees } from './worktree.ts';
 import { WriteQueue } from './write-queue.ts';
 
@@ -161,30 +162,48 @@ export async function main(
   const dealer = adapterFactory(cfg.backend, exec);
   const auditor = adapterFactory(cfg.backend, exec);
 
-  // 6. TickDeps (K=1 path: runSingleBeadTick, spec §3.1/§5.2)
-  const tickDeps: TickDeps = {
-    beads,
-    journal,
-    log,
-    ledger,
-    dealer,
-    auditor,
-    mechanicalGate: async () => ({ green: true }), // TODO: wire real gate (Slice 3)
-    worktreeRoot,
-    worktrees,
-    baseBranch: 'main',
-  };
+  // 6. Build tick closure — K>=2 (api): parallel tick; K=1: single-bead tick (spec §3.1).
+  let tick: (iteration: number) => Promise<{ closedIds: string[]; empty: boolean }>;
 
-  // 7. Wrap runSingleBeadTick in a TickOutcome adapter closure (types differ from runShift's tick)
-  const tick = async (_iteration: number) => {
-    const result = await runSingleBeadTick(tickDeps);
-    return {
-      closedIds: result.closed != null ? [result.closed] : [],
-      empty: result.reason === 'queue-empty',
+  if (cfg.concurrency >= 2) {
+    // Parallel path: ParallelTickDeps → runParallelTick (returns TickOutcome directly).
+    const parallelDeps: ParallelTickDeps = {
+      beads,
+      worktrees,
+      journal,
+      log,
+      ledger,
+      dealer,
+      auditor,
+      mechanicalGate: async () => ({ green: true }), // TODO: wire real gate (Slice 3)
+      k: cfg.concurrency,
+      baseBranch: 'main',
     };
-  };
+    tick = async (_iteration: number) => runParallelTick(parallelDeps);
+  } else {
+    // K=1 path: runSingleBeadTick — byte-unchanged from Slice 2 (spec §3.1/§5.2).
+    const tickDeps: TickDeps = {
+      beads,
+      journal,
+      log,
+      ledger,
+      dealer,
+      auditor,
+      mechanicalGate: async () => ({ green: true }), // TODO: wire real gate (Slice 3)
+      worktreeRoot,
+      worktrees,
+      baseBranch: 'main',
+    };
+    tick = async (_iteration: number) => {
+      const result = await runSingleBeadTick(tickDeps);
+      return {
+        closedIds: result.closed != null ? [result.closed] : [],
+        empty: result.reason === 'queue-empty',
+      };
+    };
+  }
 
-  // 8. Run the capped shift loop
+  // 7. Run the capped shift loop
   let report: ShiftReport;
   try {
     report = await runShift({
