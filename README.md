@@ -94,6 +94,10 @@ The 5 to 9 is built to run under Claude Code **bypass-permissions** — so the g
 
 ## Install
 
+Fresh machine? **[docs/INSTALL.md](docs/INSTALL.md)** is the one-command setup guide —
+prerequisites, the SessionStart preflight, and the automatic beads bootstrap on first
+clock-in. The short version:
+
 **Local dev:**
 ```bash
 git clone https://github.com/jakecastillo/the-5-to-9
@@ -108,6 +112,8 @@ claude --plugin-dir .
 ```
 
 Memory is beads: commit the JSONL export, and let the local `.beads` DB stay gitignored.
+On first clock-in the crew auto-runs `bd init` + `bd import` from the committed export, so
+`bd ready` works with no manual beads setup.
 
 **Test gate:**
 ```bash
@@ -119,6 +125,13 @@ bash tests/validate-plugin.sh   # must exit 0; CI runs it
 ## Status
 
 **v0.1.0 — early and experimental.** It works, but treat it like a new hire on the night shift: capable, worth watching. Use with caution, and **monitor long runs** — the fresh-process loop avoids context rot, but you still want eyes on it before you trust it with a big backlog unattended.
+
+The **markdown plugin crew is the primary runtime.** There's also an experimental,
+secondary **TypeScript driver under [`driver/`](driver/)** — a thin deterministic
+orchestrator that shells out to `claude -p` / `codex exec` worker-adapters (Node ≥ 20, run
+via `tsx`, no build step). It's optional and still maturing; reach for it only if you want
+code-guaranteed dispatch instead of the in-session loop. See [docs/INSTALL.md](docs/INSTALL.md)
+for setup.
 
 It's built to play nicely with [superpowers](https://github.com/obra/superpowers) (agentic skills) and the Ralph loop technique, and it's being built to be **cross-tool** — Claude CLI today, with Codex CLI and apps to follow.
 

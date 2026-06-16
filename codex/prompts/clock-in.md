@@ -25,9 +25,9 @@ defaults. Never modify the user repo's `CLAUDE.md` or `AGENTS.md`.
 Under Codex today there is one driver, not parallel subagents — so wear the hats in turn
 and let beads be the shared state:
 
-- **The Owner** — strategy & goal-setting; turns the goal into shaped backlog items.
+- **The Owner** — strategy & goal-setting; turns the goal into one shaped goal + acceptance.
 - **The Pit Boss** — orchestrator/lead; picks what's ready, sequences the work.
-- **The Owner** — business analyst; voice of the user; sanity-checks scope.
+- **The Cage Cashier** — integration; the single-writer merge gate; reconciles one bead at a time.
 - **The Dealer** — developer; TDD; works in an isolated worktree.
 - **The Floor Auditor** — QA; independent verification; never trusts "it should work".
 - **The Eye in the Sky** — security; owns the irreversible-action gate.
@@ -50,7 +50,7 @@ Repeat until the backlog is empty or you hit the iteration cap (default **30**):
 
 1. **Claim** the next unit atomically: `bd ready --claim`. Only `blocks` / `parent-child`
    edges gate readiness; `discovered-from` is provenance, not a blocker.
-2. **Plan** as the Pit Boss; confirm scope as the Regular.
+2. **Plan** as the Pit Boss; confirm scope with the Owner.
 3. **Implement** as the Dealer in an isolated worktree. Write the test first.
    Set `BEADS_DIR` to the main DB so the worktree finds the backlog. **Serialize writes** —
    beads' embedded store is single-writer; do not write the DB from two places at once.

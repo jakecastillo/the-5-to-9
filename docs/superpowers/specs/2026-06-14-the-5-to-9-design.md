@@ -5,7 +5,7 @@
 > works a beads backlog in parallel, and ralph-loops your repo to done —
 > hands-off, with hard gates only on irreversible actions.
 
-- **Status:** Approved direction (owner handed off for autonomous build on 2026-06-14)
+- **Status:** Superseded — historical v1 design (kept as the record of the 2026-06-14 direction). The current design is [`2026-06-15-the-5-to-9-sdk-redesign-design.md`](2026-06-15-the-5-to-9-sdk-redesign-design.md). The diner-crew names below (Floor Manager, The Regular, Line Cook, Health Inspector, Bouncer, Janitor) are **retired**; the live crew is **The Card Room** (The Owner, The Pit Boss, The Cage Cashier, The Dealers, The Floor Auditor, The Eye in the Sky, The Floorman).
 - **Author:** jakecastillo (dogfooded — The 5 to 9 helped build itself)
 - **Spec date:** 2026-06-14
 

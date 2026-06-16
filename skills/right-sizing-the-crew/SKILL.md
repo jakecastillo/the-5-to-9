@@ -56,7 +56,7 @@ Set the `model:` frontmatter field to one of the bare aliases: `opus`, `sonnet`,
 
 ```yaml
 ---
-name: the-line-cook
+name: the-dealer
 model: opus   # escalated default: this Dealer handles hard architecture
 ---
 ```
