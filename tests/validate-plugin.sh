@@ -36,6 +36,7 @@ required=(
   "tests/run.sh" "tests/gate-test.sh" "tests/gate-cases.txt" "tests/smoke-shift.sh"
   "AGENTS.md" "CLAUDE.md" "README.md" "CONTRIBUTING.md" "CHANGELOG.md"
   "SECURITY.md" "CODE_OF_CONDUCT.md" "LICENSE" ".gitignore" "docs/INSTALL.md"
+  "docs/ARCHITECTURE.md" "docs/SURFACES.md"
   "docs/superpowers/specs/2026-06-14-the-5-to-9-design.md"
   "docs/superpowers/plans/2026-06-14-the-5-to-9-plan.md"
 )

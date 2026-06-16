@@ -10,7 +10,7 @@
 
 The 5 to 9 is a **cross-tool AI night-shift crew** — shipped today as a Claude Code plugin over a deliberately portable core (`AGENTS.md` + skills + bash scripts + [beads](https://github.com/steveyegge/beads) + MCP) that already runs under Codex full-auto and other AGENTS.md-aware agents (native plugin wiring for Codex/Cursor is [phase-2](#status)). It clocks in a crew of role-agents to work a beads backlog in parallel and ralph-loop a repo to done — hands-off, with hard gates only on irreversible actions. You hand it a goal, it runs a tight service loop on a dedicated shift branch, and you read the shift report in the morning. Funny on the surface, rigorous underneath.
 
-See **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** for the crew topology, the service loop, the safety gate, and the cross-tool design — with diagrams.
+See **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** for the crew topology, the service loop, the safety gate, and the cross-tool design — with diagrams. For where the crew runs today (Claude CLI/App, Codex CLI/App) and what each surface gets, see **[docs/SURFACES.md](docs/SURFACES.md)**.
 
 > Status: **v0.1.0, early/experimental.** Use with caution and keep an eye on long runs (see [Status](#status)).
 

@@ -149,5 +149,6 @@ works one bead, and exits — no context rot over a long backlog.
 ---
 
 See also: [`README.md`](../README.md) (overview), [`docs/INSTALL.md`](INSTALL.md)
-(setup), the `running-the-shift` skill (the protocol in full), and design notes under
+(setup), [`docs/SURFACES.md`](SURFACES.md) (per-surface support matrix), the
+`running-the-shift` skill (the protocol in full), and design notes under
 [`docs/superpowers/`](superpowers/).
