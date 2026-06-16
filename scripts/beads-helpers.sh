@@ -29,12 +29,30 @@ f9_bd_closed_count() { f9_bd_count_status closed; }
 f9_bd_open_count()   { f9_bd_count_status open; }
 
 # Ensure beads is initialized in the current repo. Reversible (creates a local DB).
+# Idempotent: if an embedded DB already exists, do nothing — no re-init, no
+# re-import, no duplicates. On a FRESH clone the embedded DB (.beads/embeddeddolt)
+# is gitignored and absent, but the committed .beads/issues.jsonl backlog is
+# present; in that case we `bd init` then `bd import` it so `bd ready` works with
+# zero manual steps. With neither DB nor JSONL we just `bd init` an empty backlog.
+#
+# Note: we key the "already initialized" check on the embedded Dolt directory,
+# NOT `bd doctor` — `bd doctor` exits 0 even when no DB exists (it merely prints
+# remediation hints), so using it as the guard would skip the import on a fresh
+# clone and leave `bd ready` empty.
 f9_bd_ensure_init() {
   f9_have_beads || { f9_warn "beads (bd) not found — install it to use the backlog"; return 1; }
   f9_export_beads_dir
-  if bd doctor >/dev/null 2>&1; then return 0; fi
+  local beads_dir="${BEADS_DIR:-$(f9_repo_root)/.beads}"
+  # Already initialized? Nothing to do — keep this idempotent (no re-import).
+  if [[ -d "$beads_dir/embeddeddolt" ]]; then return 0; fi
+
+  local jsonl="$beads_dir/issues.jsonl"
   f9_log "initializing beads backlog (bd init)"
   bd init >/dev/null 2>&1 || { f9_warn "bd init failed"; return 1; }
+  if [[ -f "$jsonl" ]]; then
+    f9_log "importing committed backlog (bd import .beads/issues.jsonl)"
+    bd import "$jsonl" >/dev/null 2>&1 || f9_warn "bd import failed — backlog may be empty until you import manually"
+  fi
 }
 
 # Export the JSONL source-of-truth (commit this; the .db stays gitignored).

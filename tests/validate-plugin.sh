@@ -34,7 +34,7 @@ required=(
   "scripts/clock-out.sh" "scripts/guardrail-scan.sh" "scripts/night-shift.sh"
   "tests/run.sh" "tests/gate-test.sh" "tests/gate-cases.txt" "tests/smoke-shift.sh"
   "AGENTS.md" "CLAUDE.md" "README.md" "CONTRIBUTING.md" "CHANGELOG.md"
-  "SECURITY.md" "CODE_OF_CONDUCT.md" "LICENSE" ".gitignore"
+  "SECURITY.md" "CODE_OF_CONDUCT.md" "LICENSE" ".gitignore" "docs/INSTALL.md"
   "docs/superpowers/specs/2026-06-14-the-5-to-9-design.md"
   "docs/superpowers/plans/2026-06-14-the-5-to-9-plan.md"
 )
