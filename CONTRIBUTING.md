@@ -3,7 +3,8 @@
 > The shift that works while you're off the clock.
 
 Thanks for picking up a shift. The 5 to 9 is an early, experimental (`v0.1.0`)
-Claude Code plugin that clocks in a night-shift crew of AI role-agents to work a
+cross-tool AI night-shift crew — a Claude Code plugin today, over a portable core that
+also runs under Codex full-auto — that clocks in a crew of AI role-agents to work a
 [beads](https://github.com/steveyegge/beads) backlog in parallel and ralph-loop a
 repo to done — hands-off, with hard gates only on irreversible actions. This guide
 covers how to get set up, the one test gate that matters, the house conventions, and

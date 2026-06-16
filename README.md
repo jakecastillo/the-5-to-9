@@ -8,7 +8,9 @@
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 [![Discussions](https://img.shields.io/badge/Discussions-join-blueviolet.svg)](https://github.com/jakecastillo/the-5-to-9/discussions)
 
-The 5 to 9 is a Claude Code plugin that clocks in a night-shift crew of AI role-agents to work a [beads](https://github.com/steveyegge/beads) backlog in parallel and ralph-loop a repo to done — hands-off, with hard gates only on irreversible actions. You hand it a goal, it runs a tight service loop on a dedicated shift branch, and you read the shift report in the morning. Funny on the surface, rigorous underneath.
+The 5 to 9 is a **cross-tool AI night-shift crew** — shipped today as a Claude Code plugin over a deliberately portable core (`AGENTS.md` + skills + bash scripts + [beads](https://github.com/steveyegge/beads) + MCP) that already runs under Codex full-auto and other AGENTS.md-aware agents (native plugin wiring for Codex/Cursor is [phase-2](#status)). It clocks in a crew of role-agents to work a beads backlog in parallel and ralph-loop a repo to done — hands-off, with hard gates only on irreversible actions. You hand it a goal, it runs a tight service loop on a dedicated shift branch, and you read the shift report in the morning. Funny on the surface, rigorous underneath.
+
+See **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** for the crew topology, the service loop, the safety gate, and the cross-tool design — with diagrams.
 
 > Status: **v0.1.0, early/experimental.** Use with caution and keep an eye on long runs (see [Status](#status)).
 
@@ -56,7 +58,27 @@ Right-sized models for right-sized jobs: the heavy thinkers (strategy, security)
 4. **Clock out.** `/clock-out` ends the shift and prints a report: what shipped, what's blocked, what's next.
 5. **Refine scope** and run the next shift.
 
+```mermaid
+flowchart LR
+    A(["/clock-in [goal]"]) --> B["Owner refines goal + acceptance"]
+    B --> C["Pit Boss seeds beads + dependencies"]
+    C --> D{"bd ready empty? / cap hit?"}
+    D -- "no" --> E["claim one bead — bd ready --claim"]
+    E --> F["Dealer: TDD in an isolated worktree"]
+    F --> G{"mechanical gate: typecheck / lint / test / build"}
+    G -- "red" --> F
+    G -- "green" --> H["Floor Auditor verifies vs acceptance"]
+    H -- "fail" --> I["file a bug bead"]
+    I --> D
+    H -- "pass" --> J["Cage Cashier merges → shift branch"]
+    J --> K["bd close + note why in beads"]
+    K --> D
+    D -- "yes" --> L(["/clock-out — shift report"])
+```
+
 Other commands: `/shift-status` (peek at the loop mid-run) and `/the-5-to-9` (help / overview).
+The full set of diagrams — crew topology, the safety gate, and the cross-tool design — lives in
+**[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**.
 
 ---
 
@@ -94,22 +116,26 @@ The 5 to 9 is built to run under Claude Code **bypass-permissions** — so the g
 
 ## Install
 
-Fresh machine? **[docs/INSTALL.md](docs/INSTALL.md)** is the one-command setup guide —
-prerequisites, the SessionStart preflight, and the automatic beads bootstrap on first
-clock-in. The short version:
+Fresh machine? **[docs/INSTALL.md](docs/INSTALL.md)** is the full setup guide —
+prerequisites, the three install options, the reload step, and the automatic beads
+bootstrap on first clock-in. The short version:
 
-**Local dev:**
+**Local dev (edits reflect live):**
 ```bash
 git clone https://github.com/jakecastillo/the-5-to-9
 cd the-5-to-9
-claude --plugin-dir .
+claude --plugin-dir "$PWD"
 ```
 
-**Via marketplace:**
+**Via marketplace (then reload):**
 ```text
-/plugin marketplace add jakecastillo/the-5-to-9
+/plugin marketplace add jakecastillo/the-5-to-9   # fetches the pushed main branch
 /plugin install the-5-to-9@the-5-to-9
+/reload-plugins                                   # installed plugins don't hot-load
 ```
+
+Confirm with `claude plugin list` (`the-5-to-9@the-5-to-9 … ✔ enabled`) or by typing
+`/` and seeing `/clock-in`.
 
 Memory is beads: commit the JSONL export, and let the local `.beads` DB stay gitignored.
 On first clock-in the crew auto-runs `bd init` + `bd import` from the committed export, so

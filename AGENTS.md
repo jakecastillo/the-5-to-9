@@ -6,10 +6,13 @@
 
 ## What this project is
 
-The 5 to 9 is a **Claude Code plugin** (portable core underneath) that clocks in a
-night-shift crew of role-agents to work a [beads](https://github.com/steveyegge/beads)
-backlog and ralph-loop a repo to done, hands-off, with hard gates only on irreversible
-actions. It is mostly **markdown + JSON + bash** — no compiled artifact.
+The 5 to 9 is a **cross-tool AI night-shift crew** — shipped as a **Claude Code plugin**
+over a deliberately portable core (`AGENTS.md` + skills + bash + beads + MCP) that also
+runs under Codex full-auto and other AGENTS.md-aware agents; native plugin wiring for
+Codex/Cursor is phase-2. It clocks in a crew of role-agents to work a
+[beads](https://github.com/steveyegge/beads) backlog and ralph-loop a repo to done,
+hands-off, with hard gates only on irreversible actions. It is mostly
+**markdown + JSON + bash** — no compiled artifact.
 
 ## Build / test / lint
 

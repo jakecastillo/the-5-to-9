@@ -41,9 +41,9 @@ PROMPT="$(cat <<EOF
 You are running ONE iteration of a The 5 to 9 night shift — a fresh process with clean
 context. Follow the running-the-shift skill. Do exactly one unit of work, then stop:
 1) Claim the next ready bead: bd ready --claim --json. If none, print QUEUE-EMPTY and stop.
-2) Implement it as the Line Cook, test first (TDD); fail-on-stub before you make it pass.
+2) Implement it as the Dealer, test first (TDD); fail-on-stub before you make it pass.
 3) Run the repo's real mechanical gate (typecheck/lint/test/build). No green, no close.
-4) Verify independently as the Health Inspector against the bead's acceptance criteria.
+4) Verify independently as the Floor Auditor against the bead's acceptance criteria.
 5) Commit on the shift branch (never main/prod), then bd close the bead and note why in beads.
 Hard-stop and SURFACE (never perform) any irreversible outward action:
 deploy/publish, git push --force, deleting remote data, destroying/rotating secrets.

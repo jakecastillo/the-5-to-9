@@ -74,4 +74,4 @@ if [[ -n "$closed" ]]; then
 fi
 
 goal="$(f9_state_get goal 2>/dev/null)"
-block "Advance The 5 to 9 shift (iteration ${iter}/${max_iter}). Per the running-the-shift skill: claim the next ready bead (bd ready --claim), implement it TDD as the Line Cook, run the repo's real mechanical gate (no green, no close), have the Health Inspector verify independently against acceptance, commit on the shift branch, then bd close and note why in beads. ${ready} bead(s) ready. Goal: ${goal}. Stop only when bd ready is empty or you hit the cap; hard-stop and surface (never perform) any irreversible outward action."
+block "Advance The 5 to 9 shift (iteration ${iter}/${max_iter}). Per the running-the-shift skill: claim the next ready bead (bd ready --claim), implement it TDD as the Dealer, run the repo's real mechanical gate (no green, no close), have the Floor Auditor verify independently against acceptance, commit on the shift branch, then bd close and note why in beads. ${ready} bead(s) ready. Goal: ${goal}. Stop only when bd ready is empty or you hit the cap; hard-stop and surface (never perform) any irreversible outward action."
