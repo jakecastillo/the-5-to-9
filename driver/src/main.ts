@@ -17,6 +17,7 @@ interface ParsedArgs {
   backend?: Backend;
   goal: string;
   budgetUsd?: number;
+  concurrency?: number;
   maxIterations?: number;
   noProgressWindow?: number;
 }
@@ -27,16 +28,18 @@ export function parseArgv(argv: string[]): ParsedArgs {
   let backend: Backend | undefined;
   let goal = '';
   let budgetUsd: number | undefined;
+  let concurrency: number | undefined;
   let maxIterations: number | undefined;
   let noProgressWindow: number | undefined;
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--backend') backend = argv[++i] as Backend;
     else if (argv[i] === '--goal') goal = argv[++i] ?? '';
     else if (argv[i] === '--budget-usd') budgetUsd = Number(argv[++i]);
+    else if (argv[i] === '--concurrency' || argv[i] === '-K') concurrency = Number(argv[++i]);
     else if (argv[i] === '--max-iterations') maxIterations = Number(argv[++i]);
     else if (argv[i] === '--no-progress-window') noProgressWindow = Number(argv[++i]);
   }
-  return { backend, goal, budgetUsd, maxIterations, noProgressWindow };
+  return { backend, goal, budgetUsd, concurrency, maxIterations, noProgressWindow };
 }
 
 /** The usage text printed for `--help`, listing every flag. */
@@ -50,6 +53,7 @@ export function usage(): string {
     '  --backend claude|codex|api   Required. Which engine bills this shift.',
     '  --goal <text>                Optional. The objective for the run.',
     '  --budget-usd <n>             Optional. Spend cap in USD (metered-api default $5).',
+    '  --concurrency <n>, -K <n>    Optional. Worker pool size (api only; others forced to 1).',
     '  --max-iterations <n>         Optional. Cap on shift iterations (default 30).',
     '  --no-progress-window <n>     Optional. No-progress stop window (default 3).',
     '  -h, --help                   Show this message and exit.',
