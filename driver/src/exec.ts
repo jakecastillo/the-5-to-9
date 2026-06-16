@@ -15,7 +15,14 @@ export type ExecFn = (
 /** Real process exec; tests inject a mock ExecFn instead. */
 export const realExec: ExecFn = (cmd, args, opts = {}) =>
   new Promise((resolve, reject) => {
-    const child = spawn(cmd, args, { cwd: opts.cwd, env: opts.env ?? process.env });
+    // stdin is 'ignore' (closed) so a tool that reads stdin — e.g. `codex exec`,
+    // which prints "Reading additional input from stdin…" — gets immediate EOF
+    // instead of blocking on our open pipe. stdout/stderr stay captured.
+    const child = spawn(cmd, args, {
+      cwd: opts.cwd,
+      env: opts.env ?? process.env,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
     let stdout = '';
     let stderr = '';
     child.stdout.on('data', (d) => {
