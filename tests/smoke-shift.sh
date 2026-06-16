@@ -20,6 +20,9 @@ trap cleanup EXIT
 
 export CLAUDE_PLUGIN_ROOT="$ROOT"
 export CLAUDE_PROJECT_DIR="$TMP"
+# This smoke test owns a throwaway repo. A parent shift may export BEADS_DIR for
+# the real workspace; never let that leak into the temporary beads database.
+unset BEADS_DIR
 ( cd "$TMP" && git init -q 2>/dev/null ) || true
 
 state="$TMP/.claude/five-to-nine/shift.local.md"
