@@ -146,6 +146,21 @@ else
   note "node not installed — node --test skipped (CI runs it)"
 fi
 
+# ── 5e. driver/ TypeScript checks (typecheck + lint + tests; skipped if toolchain absent) ─
+head_ "driver (TypeScript)"
+if [[ -d "$ROOT/driver" ]] && have node && have pnpm; then
+  drv_out="$(cd "$ROOT/driver" && pnpm install --frozen-lockfile >/dev/null 2>&1 && pnpm run typecheck 2>&1 && pnpm run lint 2>&1 && pnpm test 2>&1)"; drv_rc=$?
+  if [[ "$drv_rc" -eq 0 ]]; then
+    ok "driver typecheck + lint + tests passed ($(printf '%s' "$drv_out" | grep -aoE '# pass [0-9]+' | head -n1 | sed 's/# //'))"
+  else
+    bad "driver checks failed:"; printf '%s\n' "$drv_out" | tail -n 20 | sed 's/^/   /'
+  fi
+elif [[ -d "$ROOT/driver" ]]; then
+  note "driver/ present but node/pnpm absent — driver checks skipped (CI should install them)"
+else
+  note "no driver/ — skipped"
+fi
+
 # ── 6. Optional: shellcheck (never blocks) ───────────────────────────────────
 head_ "shellcheck (optional)"
 if have shellcheck; then
