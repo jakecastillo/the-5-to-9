@@ -4,7 +4,8 @@
 # Always capped (default 30). Git-Bash-compatible. Reversible work only.
 #
 # usage: night-shift.sh [--max-iterations N] [--goal "..."] [--dry-run]
-#   --max-iterations N   hard cap on iterations (default 30; required to be >= 1)
+#   --max-iterations N   OPTIONAL iteration ceiling (>= 1). Omitted = uncapped:
+#                        runs until QUEUE-EMPTY or a no-progress stall (always guarded).
 #   --goal "..."         optional standing goal woven into each iteration's prompt
 #   --dry-run            run the loop logic without invoking the agent (for tests)
 # env: FIVE_TO_NINE_AGENT_CMD (override the agent invocation; gets $FIVE_TO_NINE_PROMPT),
@@ -17,7 +18,7 @@ F9_HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=beads-helpers.sh
 . "$F9_HERE/beads-helpers.sh"
 
-max_iter="${FIVE_TO_NINE_MAX_ITER:-30}"
+max_iter="${FIVE_TO_NINE_MAX_ITER:-}"   # empty = uncapped (guarded by QUEUE-EMPTY + no-progress)
 goal=""
 dry_run=0
 while [[ $# -gt 0 ]]; do
@@ -32,8 +33,10 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-[[ "$max_iter" =~ ^[0-9]+$ ]] || { f9_err "--max-iterations must be a positive integer (got: '$max_iter')"; exit 2; }
-(( max_iter >= 1 )) || { f9_err "--max-iterations must be >= 1"; exit 2; }
+if [[ -n "$max_iter" ]]; then
+  [[ "$max_iter" =~ ^[0-9]+$ ]] || { f9_err "--max-iterations must be a positive integer (got: '$max_iter')"; exit 2; }
+  (( max_iter >= 1 )) || { f9_err "--max-iterations must be >= 1"; exit 2; }
+fi
 
 f9_export_beads_dir
 
@@ -63,10 +66,10 @@ run_agent() {
   fi
 }
 
-f9_log "night shift starting — cap ${max_iter} iteration(s)$([[ $dry_run -eq 1 ]] && echo ' (dry-run)')"
+f9_log "night shift starting — $([[ -n "$max_iter" ]] && echo "cap ${max_iter} iteration(s)" || echo "uncapped (until QUEUE-EMPTY or no-progress stall)")$([[ $dry_run -eq 1 ]] && echo ' (dry-run)')"
 iter=0; prev_closed=-1; stall=0; stall_max="${FIVE_TO_NINE_NOPROGRESS:-3}"
 
-while (( iter < max_iter )); do
+while [[ -z "$max_iter" ]] || (( iter < max_iter )); do
   ready="$(f9_ready_count 2>/dev/null || echo 0)"; [[ "$ready" =~ ^[0-9]+$ ]] || ready=0
   if (( ready == 0 )); then
     f9_log "QUEUE-EMPTY — backlog drained after ${iter} iteration(s)"; break
@@ -82,7 +85,7 @@ while (( iter < max_iter )); do
   fi
 
   iter=$((iter+1))
-  f9_log "── iteration ${iter}/${max_iter} · ${ready} ready · closed=${closed:-?} ──"
+  f9_log "── iteration ${iter}/${max_iter:-∞} · ${ready} ready · closed=${closed:-?} ──"
   if (( dry_run == 1 )); then
     f9_log "[dry-run] would advance one bead (agent not invoked)"; continue
   fi

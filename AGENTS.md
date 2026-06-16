@@ -57,7 +57,9 @@ There is no build step. "Green" = `validate-plugin.sh` exits 0. CI runs it on pu
 - beads embedded Dolt is **single-writer** — serialize writes; isolate independent work
   in worktrees and set `BEADS_DIR` so they find the main DB.
 - Only `blocks` / `parent-child` edges gate `bd ready`; `discovered-from` is provenance.
-- **Always** cap loop iterations (default 30). Never ship an uncapped loop.
+- **Always *guard* loops** (no-progress stall + QUEUE-EMPTY + the irreversible gate). The
+  iteration *ceiling* is **opt-in** (`--max-iterations`); omit it for an uncapped hands-off
+  run that stops on an empty backlog or a no-progress stall. Never ship an *unguarded* loop.
 
 ## Right-sizing models (defaults; overridable)
 

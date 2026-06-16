@@ -77,7 +77,9 @@ doing the read inline — right-size and reserve it.
 
 ## Don't run forever (degenerate-loop guards)
 
-- **Cap iterations.** Default 30. Never ship an uncapped loop.
+- **Guard the loop, always.** QUEUE-EMPTY + the no-progress stall are the terminators; an
+  explicit iteration ceiling (`--max-iterations`) is optional (omit = uncapped, runs to
+  empty/stall). Never run *unguarded*.
 - **No-progress detection.** If N iterations (default 3) close/create no beads and the open
   count doesn't move, **stop and report** — the loop is stuck, not working.
 - **Stuck-bead escalation.** A bead that fails its gate repeatedly gets escalated a model
