@@ -51,6 +51,11 @@ AGENTS.md (and README / CONTRIBUTING) for the project's intent and guardrails, a
 them — the repo's own rules win (priority: this repo > The 5 to 9 > defaults). Then do
 exactly one unit of work, then stop:
 1) Claim the next ready bead: bd ready --claim --json. If none, print QUEUE-EMPTY and stop.
+Impactful bead check: before editing, read the claimed bead's acceptance and keep a
+self-rating vs the goal in beads when the bead asks for strategy/config tuning. If the claimed bead is too broad
+for one clean loop, do not pretend it is implementation-ready: split or sharpen it into
+well-formed child beads with checkable acceptance, then surface that result instead of
+closing the broad bead.
 2) Implement it as the Dealer, test first (TDD); fail-on-stub before you make it pass.
 3) Run the repo's real mechanical gate (typecheck/lint/test/build). No green, no close.
 4) Verify independently as the Floor Auditor against the bead's acceptance criteria.

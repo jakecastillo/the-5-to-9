@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Tuned the hands-off `night-shift.sh` prompt with a compact impactful-bead rubric so
+  fresh workers self-rate strategy/config beads, split overly broad claims into
+  well-formed child beads, and avoid closing vague work.
+
 ## [0.1.0] - 2026-06-16
 
 Initial early/experimental release. The shift that works while you're off the clock.

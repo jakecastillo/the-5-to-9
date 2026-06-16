@@ -92,6 +92,14 @@ if grep -q 'Hard-stop and SURFACE' "$prompt_file" \
 else
   no "night-shift prompt is missing irreversible-action gate language"
 fi
+if grep -q 'Impactful bead check' "$prompt_file" \
+   && grep -q 'self-rating vs the goal' "$prompt_file" \
+   && grep -q 'well-formed child beads' "$prompt_file" \
+   && grep -q 'If the claimed bead is too broad' "$prompt_file"; then
+  ok "night-shift prompt carries the autonomous-run quality rubric"
+else
+  no "night-shift prompt is missing autonomous-run quality rubric"
+fi
 printf '%s' "$gate_out" | grep -q 'irreversible gate self-check passed' \
   && ok "night-shift verifies the irreversible gate before launching a worker" \
   || no "night-shift did not verify the irreversible gate before launching a worker"
