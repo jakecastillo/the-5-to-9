@@ -37,6 +37,26 @@ bd create --type bug     -p 1 --acceptance "..."                     "Something 
 Types: `epic` (the goal) → `feature` (a shippable slice) → `task` (a unit of work);
 `bug` (a defect, filed by QA/security); `chore` (hygiene/devops debt).
 
+## What makes a bead worth working (acceptance-first, right-sized)
+
+Research is cheap; a vague bead is expensive. Before you create one, make it real:
+
+- **Acceptance-first.** Write `--acceptance` as a *checkable* outcome ("X passes", "Y
+  returns Z"), not a vibe. If you can't state how the Floor Auditor would verify it
+  independently, the bead isn't ready — sharpen it until you can.
+- **One loop, one bead.** Size it so one Dealer implements it test-first and one auditor
+  verifies it in a single pass. If you can't write *one* failing test that proves it,
+  it's too big — split into child tasks.
+- **Cut gold-plating.** Trim to the smallest defensible slice that moves the goal;
+  nice-to-haves become separate `discovered` beads, not scope creep.
+- **Wire only real gates.** `blocks`/parent-child only when work must wait (see below);
+  everything else is `discovered-from` provenance.
+- **Leave the trail.** Record *why* (`--notes` / `bd remember`) so the next fresh-context
+  iteration doesn't re-derive it.
+
+Smell test: a good bead has crisp acceptance, fits one loop, and names its real blockers —
+nothing more.
+
 ## Dependencies — what actually gates readiness
 
 ```bash
