@@ -215,3 +215,94 @@ for (const note of ADVERSARIAL_NOTES_CASES) {
       `round-trip failed for ${JSON.stringify(note)}`);
   });
 }
+
+// ---- session-start.sh tests ----
+
+test('session-start.sh emits a SessionStart additionalContext envelope via json-context.sh (node path)', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'f9-ss-node-'));
+  const marker = join(dir, 'node-argv.txt');
+  const fakeNode = join(dir, 'node');
+  writeFileSync(fakeNode, [
+    '#!/usr/bin/env bash',
+    'printf "%s\\n" "$@" > "$F9_NODE_MARKER"',
+    'exec "$REAL_NODE" "$@"',
+    '',
+  ].join('\n'));
+  chmodSync(fakeNode, 0o755);
+
+  const result = spawnSync('bash', ['hooks/session-start.sh'], {
+    cwd: process.cwd(),
+    input: '',
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      PATH: `${dir}${delimiter}${process.env.PATH || ''}`,
+      REAL_NODE: process.execPath,
+      F9_NODE_MARKER: marker,
+    },
+  });
+
+  assert.equal(result.status, 0, `session-start.sh must always exit 0, stderr: ${result.stderr}`);
+  // Must have invoked the node helper
+  assert.ok(existsSync(marker), 'fake node was never invoked — did not route through json-context.sh');
+  const argv = readFileSync(marker, 'utf8');
+  assert.match(argv, /hooks\/json-context\.mjs/, `expected json-context.mjs in argv, got: ${argv}`);
+  // Output must be valid JSON with SessionStart envelope
+  const parsed = JSON.parse(result.stdout.trim());
+  assert.equal(parsed.hookSpecificOutput.hookEventName, 'SessionStart');
+  assert.equal(typeof parsed.hookSpecificOutput.additionalContext, 'string');
+  assert.ok(parsed.hookSpecificOutput.additionalContext.length > 0, 'additionalContext must be non-empty');
+});
+
+test('session-start.sh emits SessionStart envelope via bash f9_json_string fallback when node is absent', () => {
+  const result = spawnSync('bash', ['hooks/session-start.sh'], {
+    cwd: process.cwd(),
+    input: '',
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      F9_JSON_CONTEXT_SKIP_NODE: '1',
+      F9_NO_JQ: '1',
+    },
+  });
+
+  assert.equal(result.status, 0, `session-start.sh must always exit 0, stderr: ${result.stderr}`);
+  const parsed = JSON.parse(result.stdout.trim());
+  assert.equal(parsed.hookSpecificOutput.hookEventName, 'SessionStart');
+  assert.ok(parsed.hookSpecificOutput.additionalContext.length > 0);
+});
+
+test('session-start.sh always exits 0', () => {
+  const result = spawnSync('bash', ['hooks/session-start.sh'], {
+    cwd: process.cwd(),
+    input: '',
+    encoding: 'utf8',
+    env: { ...process.env },
+  });
+  assert.equal(result.status, 0, `session-start.sh must always exit 0, stderr: ${result.stderr}`);
+});
+
+const SS_ADVERSARIAL_CASES = [
+  '',
+  'plain note',
+  'has "double quotes"',
+  'back\\slash',
+  'new\nline',
+  'tab\there',
+];
+
+for (const note of SS_ADVERSARIAL_CASES) {
+  test(`session-start.sh additionalContext JSON parses for note: ${JSON.stringify(note)} (via json-context.sh)`, () => {
+    const result = spawnSync('bash', ['hooks/json-context.sh', 'SessionStart'], {
+      cwd: process.cwd(),
+      input: note,
+      encoding: 'utf8',
+      env: { ...process.env },
+    });
+
+    assert.equal(result.status, 0, result.stderr);
+    const parsed = JSON.parse(result.stdout.trim());
+    assert.equal(parsed.hookSpecificOutput.additionalContext, note,
+      `round-trip failed for ${JSON.stringify(note)}`);
+  });
+}

@@ -2,6 +2,9 @@
 # The 5 to 9 — SessionStart hook: inject a ONE-LINE awareness note (kept tiny to
 # avoid permanent context cost). If a shift is active, re-prime beads cheaply.
 # Always exits 0. Git-Bash-compatible.
+#
+# JSON envelope is built by hooks/json-context.sh (which dispatches to the zero-dep
+# Node helper when node is present, and falls back to bash f9_json_string when not).
 
 F9_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 # shellcheck source=../scripts/lib/common.sh
@@ -35,6 +38,5 @@ else
 fi
 
 note="${f9_node_warn}${note}"
-ctx="$(printf '%s' "$note" | f9_json_string)"
-printf '{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":%s}}\n' "$ctx"
+printf '%s' "$note" | bash "$F9_ROOT/hooks/json-context.sh" "SessionStart"
 exit 0
