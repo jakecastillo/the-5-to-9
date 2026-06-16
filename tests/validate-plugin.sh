@@ -120,6 +120,30 @@ if . "$ROOT/scripts/lib/common.sh" 2>/dev/null && command -v f9_json_string >/de
     fi
   done
   [[ "$esc_ok" -eq 1 ]] && ok "no-jq JSON escaper emits valid quoted strings"
+
+  # Degenerate environment: PATH emptied (no awk/sed/jq/coreutils reachable).
+  # SessionStart fail-opens, but the JSON it emits must still be valid — the
+  # no-jq fallback must run on bash builtins ALONE. We re-source common.sh in a
+  # subshell with PATH= so command -v finds nothing external, then escape inputs
+  # covering: empty string, embedded double-quotes, backslashes, and a control
+  # char (a literal TAB). A control char left raw makes the JSON invalid.
+  emptypath_ok=1
+  tab="$(printf '\t')"
+  for s in "" 'has "double" quotes' 'back\slash\here' "ctl${tab}tab"; do
+    out="$(
+      export PATH=
+      . "$ROOT/scripts/lib/common.sh" 2>/dev/null
+      printf '%s' "$s" | F9_NO_JQ=1 f9_json_string
+    )"
+    case "$out" in
+      '"'*'"') : ;;
+      *) bad "empty-PATH escaper didn't wrap in quotes: input=[$s] output=[$out]"; emptypath_ok=0 ;;
+    esac
+    if have jq && ! printf '%s' "$out" | jq empty >/dev/null 2>&1; then
+      bad "empty-PATH escaper produced invalid JSON for input=[$s]: $out"; emptypath_ok=0
+    fi
+  done
+  [[ "$emptypath_ok" -eq 1 ]] && ok "no-jq JSON escaper survives an emptied PATH (bash builtins only)"
 else
   note "could not source common.sh / f9_json_string — escaper check skipped"
 fi

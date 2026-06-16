@@ -74,27 +74,49 @@ f9_state_body() {
 
 # --- json --------------------------------------------------------------------
 # JSON-escape stdin → a quoted JSON string on stdout (prefers jq, falls back).
-# The awk fallback wraps in quotes unconditionally and handles 0/1/N lines
-# uniformly, so empty input yields "" and single-line input is correctly quoted
-# (a prior sed-slurp fallback dropped the quotes on single-line input → invalid
-# JSON when jq was absent, e.g. Git Bash). Set F9_NO_JQ=1 to force the fallback
+# The fallback is PURE BASH BUILTINS (read + printf) — no awk/sed/jq/coreutils —
+# so it survives a degenerate PATH (e.g. SessionStart firing with an emptied
+# PATH, or Git Bash without jq). It wraps in quotes unconditionally, so empty
+# input yields "" and any input is correctly quoted. All JSON-mandatory escapes
+# are handled: backslash, double-quote, and every control char < 0x20 (the named
+# short escapes \b \f \n \r \t, plus \u00XX for the rest) — a raw control char
+# would otherwise make the JSON invalid. Set F9_NO_JQ=1 to force the fallback
 # (used by the test gate to exercise the no-jq path).
 f9_json_string() {
   if [[ -z "${F9_NO_JQ:-}" ]] && f9_have jq; then
     jq -Rs .
-  else
-    awk '
-      BEGIN { ORS = ""; printf "\"" }
-      {
-        if (NR > 1) printf "\\n"
-        s = $0
-        gsub(/\\/, "\\\\", s); gsub(/"/, "\\\"", s)
-        gsub(/\t/, "\\t", s);  gsub(/\r/, "\\r", s)
-        printf "%s", s
-      }
-      END { printf "\"" }
-    '
+    return
   fi
+  # Pure-bash fallback. Slurp all of stdin (incl. trailing bytes) into one var.
+  # `read -r -d ''` returns non-zero at EOF but still populates $raw with the
+  # full stream; we ignore its status on purpose.
+  local raw out ch i n hex
+  IFS= read -r -d '' raw || true
+  out='"'
+  n=${#raw}
+  for (( i = 0; i < n; i++ )); do
+    ch=${raw:i:1}
+    case "$ch" in
+      '\') out+='\\' ;;
+      '"') out+='\"' ;;
+      $'\b') out+='\b' ;;
+      $'\f') out+='\f' ;;
+      $'\n') out+='\n' ;;
+      $'\r') out+='\r' ;;
+      $'\t') out+='\t' ;;
+      *)
+        # Other C0 control chars (0x00–0x1F) must be \u-escaped; printf builtin
+        # gives us the codepoint. Everything else passes through verbatim.
+        printf -v hex '%d' "'$ch"
+        if (( hex >= 0 && hex < 32 )); then
+          printf -v ch '\\u%04x' "$hex"
+        fi
+        out+=$ch
+        ;;
+    esac
+  done
+  out+='"'
+  printf '%s' "$out"
 }
 
 # --- beads convenience -------------------------------------------------------
