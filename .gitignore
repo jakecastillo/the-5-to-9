@@ -91,3 +91,8 @@ desktop.ini
 *.log
 /tmp/
 .scratch/
+
+# Beads / Dolt files (added by bd init)
+.dolt/
+*.db
+.beads/proxieddb/
