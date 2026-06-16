@@ -87,12 +87,12 @@ beads' embedded store is **single-writer** — serialize writes. For genuinely i
 work, isolate each writer:
 
 ```bash
-bd worktree <id>                # isolated git worktree for one Dealer
-export BEADS_DIR="$REPO/.beads" # so the detached worktree finds the MAIN backlog
-bd merge-slot                   # serialized merge gate — one integration at a time
+git worktree add -b shift/<id> "$REPO/.worktrees/<id>" HEAD  # isolated worktree per Dealer
+export BEADS_DIR="$REPO/.beads"   # so the detached worktree finds the MAIN backlog
+# integration: the Cage Cashier merges one worktree at a time (the single-writer gate)
 ```
 
-Worktree isolation + a merge-slot is exactly "isolate writes, gate the merge" — it prevents
+Worktree isolation + the Cage Cashier merge gate is exactly "isolate writes, gate the merge" — it prevents
 two agents editing the same files. Never point two writers at the DB at once.
 
 ## Durable memory

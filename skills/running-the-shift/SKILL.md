@@ -57,7 +57,7 @@ iteration cap is hit (default **30**):
 2. **Plan** (Pit Boss) → **confirm scope** with the Owner if fuzzy.
 3. **Implement** (Dealer) — **one** bead, **test first**. Write a failing test that
    encodes the acceptance criteria and fails on a *stub* (no placeholder cheating). Then
-   make it pass; refactor. Work in an isolated worktree when assigned (`bd worktree`; export
+   make it pass; refactor. Work in an isolated worktree when assigned (`git worktree add`; export
    `BEADS_DIR` so the worktree finds the main DB). **Serialize writes** — beads' store is
    single-writer; never write the DB from two places at once.
 4. **Mechanical gate** — run the repo's real typecheck/lint/test/build. Green or it doesn't
