@@ -98,14 +98,28 @@ committed `.beads/issues.jsonl` is present, the crew runs `bd init` +
 `bd import` for you, so `bd ready` works immediately — no manual `bd` setup.
 Omit `[goal]` to let the crew infer the smallest defensible goal from the repo.
 
-Peek with `/shift-status`; end with `/clock-out`. For long hands-off runs use a
-fresh process per iteration:
+Peek with `/shift-status`; end with `/clock-out`. For long hands-off runs, two engines
+are available:
+
+**Bash loop (default):** fresh process per iteration, no Node/pnpm required.
 
 ```bash
 bash scripts/night-shift.sh --max-iterations 30
 ```
 
-**Driver (optional, TypeScript runtime):** install its deps once.
+**SDK driver (`--driver` flag):** TypeScript runtime, K=1 concurrency for subscription
+backends. K>=2 requires `--backend api` (metered API only — spec §2.1). Requires Node
+≥ 20 and `pnpm install` in `driver/` (see prerequisites above).
+
+```bash
+bash scripts/clock-in-dispatch.sh --driver --backend claude --max-iterations 30
+```
+
+The dispatch script routes: `--driver` → SDK driver (`scripts/launch-driver.sh`);
+no `--driver` flag → bash loop (`scripts/night-shift.sh`). The two engines do not share
+code — `clock-in-dispatch.sh` is the only junction.
+
+**Driver deps (one-time, if using `--driver`):** install once per machine.
 
 ```bash
 cd driver && pnpm install

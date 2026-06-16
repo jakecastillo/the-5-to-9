@@ -55,5 +55,7 @@ serialize through beads; true parallel subagents are phase-2.
 **Claude CLI is the only fully-shipped surface today.** The other three run the *portable
 core* (AGENTS.md + skills + scripts + beads + MCP) but not yet the full packaged
 experience. The remaining wiring is tracked under the `phu` epic (`phu.1`, `phu.5`,
-`phu.6`) and the `ap8` blocker. Two run engines apply everywhere the core runs: watched
-(`/clock-in`) and hands-off (`scripts/night-shift.sh`).
+`phu.6`) and the `ap8` blocker. Three run engines apply everywhere the core runs:
+watched (`/clock-in`), hands-off bash loop (`scripts/night-shift.sh`), and the
+off-loop SDK driver (`scripts/clock-in-dispatch.sh --driver`, K=1 for subscription
+backends, K>=2 metered-api only — spec §2.1).

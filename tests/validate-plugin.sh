@@ -34,7 +34,9 @@ required=(
   "hooks/irreversible-gate.mjs" "hooks/gate.test.mjs"
   "scripts/lib/common.sh" "scripts/beads-helpers.sh" "scripts/setup-shift.sh"
   "scripts/clock-out.sh" "scripts/guardrail-scan.sh" "scripts/night-shift.sh"
+  "scripts/launch-driver.sh" "scripts/clock-in-dispatch.sh"
   "tests/run.sh" "tests/gate-test.sh" "tests/gate-cases.txt" "tests/smoke-shift.sh"
+  "tests/launch-driver-test.sh"
   "AGENTS.md" "CLAUDE.md" "README.md" "CONTRIBUTING.md" "CHANGELOG.md"
   "SECURITY.md" "CODE_OF_CONDUCT.md" "LICENSE" ".gitignore" "docs/INSTALL.md"
   "docs/ARCHITECTURE.md" "docs/SURFACES.md" "docs/BRANDING.md"
@@ -262,6 +264,15 @@ elif [[ -d "$ROOT/driver" ]]; then
   note "driver/ present but node/pnpm absent — driver checks skipped (CI should install them)"
 else
   note "no driver/ — skipped"
+fi
+
+# ── 5g. clock-in-dispatch routing (--driver flag → SDK driver; absent → bash loop) ──
+head_ "clock-in-dispatch routing"
+ld_out="$(bash "$ROOT/tests/launch-driver-test.sh" 2>&1)"; ld_rc=$?
+if [[ "$ld_rc" -eq 0 ]]; then
+  ok "$(printf '%s' "$ld_out" | tail -n1)"
+else
+  bad "clock-in-dispatch routing regressed:"; printf '%s\n' "$ld_out" | sed 's/^/   /'
 fi
 
 # ── 6. Optional: shellcheck (never blocks) ───────────────────────────────────

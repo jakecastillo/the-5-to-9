@@ -52,10 +52,24 @@ Reversible work proceeds. **Stop at the gate** for any irreversible outward acti
 ## 5. Long runs
 
 This in-session engine is for **short, watched** shifts (context accumulates). For a long
-hands-off backlog, use the fresh-process loop instead:
+hands-off backlog, two engines are available — pick one:
+
+**Default (bash loop):** fresh process per iteration, no Node/pnpm required.
 
 ```bash
 bash "${CLAUDE_PLUGIN_ROOT}/scripts/night-shift.sh" --max-iterations 30
 ```
+
+**SDK driver (`--driver` flag):** deterministic TypeScript runtime, K=1 concurrency
+for subscription backends (claude, codex). K>=2 requires `--backend api` (metered API
+only — spec §2.1). Requires Node ≥ 20 and `pnpm install` in `driver/`.
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/clock-in-dispatch.sh" --driver --backend claude --max-iterations 30
+```
+
+The dispatch script (`scripts/clock-in-dispatch.sh`) routes: `--driver` → SDK driver
+(`launch-driver.sh`); no flag → bash loop (`night-shift.sh`). The two engines never
+share code — the dispatch is the only junction.
 
 When the backlog is clear or the cap is hit, run `/clock-out` for the shift report.
