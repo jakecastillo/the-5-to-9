@@ -50,3 +50,38 @@ test('mergesClean() is false when the output reports a CONFLICT', async () => {
   const wt = new Worktrees(fn, '/repo');
   assert.equal(await wt.mergesClean('main', 'shift/b1'), false);
 });
+
+test('merge() checks out base then fast-forward merges the branch', async () => {
+  const { fn, calls } = recorder();
+  const wt = new Worktrees(fn, '/repo');
+  await wt.merge('main', 'shift/b1');
+  assert.ok(
+    calls.some((c) => c === 'git checkout main'),
+    'must checkout base',
+  );
+  assert.ok(
+    calls.some((c) => c === 'git merge --ff-only shift/b1'),
+    'must ff-merge branch',
+  );
+});
+
+test('merge() falls back to --no-ff when --ff-only fails', async () => {
+  const { fn, calls } = recorder((k) =>
+    k === 'git merge --ff-only shift/b1' ? { throws: true } : {},
+  );
+  const wt = new Worktrees(fn, '/repo');
+  await wt.merge('main', 'shift/b1');
+  assert.ok(
+    calls.some((c) => c === 'git merge --no-ff shift/b1'),
+    'must fall back to --no-ff',
+  );
+});
+
+test('merge() rejects when both merge strategies fail (conflict)', async () => {
+  const { fn } = recorder((k) => {
+    if (k.startsWith('git merge')) return { throws: true };
+    return {};
+  });
+  const wt = new Worktrees(fn, '/repo');
+  await assert.rejects(() => wt.merge('main', 'shift/b1'), /merge failed/);
+});

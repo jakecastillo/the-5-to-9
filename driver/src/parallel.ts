@@ -77,6 +77,12 @@ export async function runParallelTick(d: ParallelTickDeps): Promise<TickOutcome>
       await d.log.write({ kind: 'merge-conflict-requeue', beadId: c.bead.id });
       continue;
     }
+    // Integrate: merge the bead's branch onto the base (exactly-once via journal).
+    if (!d.journal.hasDone('merge', c.bead.id)) {
+      await d.worktrees.merge(d.baseBranch, c.branch);
+      await d.journal.append({ type: 'merge', beadId: c.bead.id });
+      await d.log.write({ kind: 'merge', beadId: c.bead.id });
+    }
     await d.journal.append({ type: 'close', beadId: c.bead.id });
     await d.beads.close(c.bead.id, 'verified by independent auditor');
     await d.worktrees.remove(c.worktree);

@@ -36,4 +36,22 @@ export class Worktrees {
       return false;
     }
   }
+
+  /**
+   * Real integration: checkout `base`, then fast-forward-merge `branch`.
+   * Falls back to `--no-ff` if `--ff-only` fails (e.g. the branch has diverged).
+   * Throws if both strategies fail (conflict — caller should have run mergesClean first).
+   */
+  async merge(base: string, branch: string): Promise<void> {
+    await this.exec('git', ['checkout', base], { cwd: this.repoRoot });
+    try {
+      await this.exec('git', ['merge', '--ff-only', branch], { cwd: this.repoRoot });
+    } catch {
+      try {
+        await this.exec('git', ['merge', '--no-ff', branch], { cwd: this.repoRoot });
+      } catch {
+        throw new Error(`merge failed: ${branch} into ${base}`);
+      }
+    }
+  }
 }

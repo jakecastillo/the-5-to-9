@@ -9,6 +9,7 @@ import type { ExecFn } from '../src/exec.ts';
 import { Journal } from '../src/journal.ts';
 import { BudgetLedger, RunLog } from '../src/observability.ts';
 import { runSingleBeadTick } from '../src/orchestrator.ts';
+import { Worktrees } from '../src/worktree.ts';
 import { WriteQueue } from '../src/write-queue.ts';
 
 function fakeBdExec(): { fn: ExecFn; calls: string[] } {
@@ -26,6 +27,10 @@ function fakeBdExec(): { fn: ExecFn; calls: string[] } {
     return { stdout: '{}', stderr: '', code: 0 };
   };
   return { fn, calls };
+}
+
+function makeWorktrees(fn: ExecFn, dir: string): Worktrees {
+  return new Worktrees(fn, dir);
 }
 
 const dealerScript = {
@@ -63,6 +68,8 @@ test('closes the bead after Dealer + independent Auditor both pass', async () =>
       auditor: new MockAdapter(auditorScript),
       mechanicalGate: async () => ({ green: true }),
       worktreeRoot: dir,
+      worktrees: makeWorktrees(fn, dir),
+      baseBranch: 'main',
     });
     assert.equal(r.closed, 'b1');
     assert.ok(calls.some((c) => c.startsWith('bd update b1 --claim')));
@@ -86,6 +93,8 @@ test('does NOT close on a red mechanical gate', async () => {
       auditor: new MockAdapter(auditorScript),
       mechanicalGate: async () => ({ green: false }),
       worktreeRoot: dir,
+      worktrees: makeWorktrees(fn, dir),
+      baseBranch: 'main',
     });
     assert.equal(r.closed, null);
     assert.equal(r.reason, 'mechanical-gate-red');
@@ -112,9 +121,57 @@ test('resume is idempotent: an already-closed bead is not re-closed', async () =
       auditor: new MockAdapter(auditorScript),
       mechanicalGate: async () => ({ green: true }),
       worktreeRoot: dir,
+      worktrees: makeWorktrees(fn, dir),
+      baseBranch: 'main',
     });
     assert.equal(r.skipped, 'b1');
     assert.equal(calls.filter((c) => c.startsWith('bd close b1')).length, 0);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('single-bead tick: merge runs before bd close', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'f9orch-'));
+  try {
+    const order: string[] = [];
+    const fn: ExecFn = async (cmd, args) => {
+      const key = [cmd, ...args].join(' ');
+      if (key.startsWith('bd ready'))
+        return {
+          stdout: JSON.stringify([{ id: 'b1', status: 'open', inScopeDirs: ['src'] }]),
+          stderr: '',
+          code: 0,
+        };
+      if (key.startsWith('git checkout') || key.startsWith('git merge')) {
+        order.push('merge');
+        return { stdout: '', stderr: '', code: 0 };
+      }
+      if (key.startsWith('bd close')) {
+        order.push('close');
+        return { stdout: '{}', stderr: '', code: 0 };
+      }
+      return { stdout: '{}', stderr: '', code: 0 };
+    };
+    const beads = new Beads(fn, new WriteQueue());
+    const r = await runSingleBeadTick({
+      beads,
+      journal: new Journal(join(dir, 'journal.jsonl')),
+      log: new RunLog(join(dir, 'events.jsonl')),
+      ledger: new BudgetLedger(1, 0),
+      dealer: new MockAdapter(dealerScript),
+      auditor: new MockAdapter(auditorScript),
+      mechanicalGate: async () => ({ green: true }),
+      worktreeRoot: dir,
+      worktrees: new Worktrees(fn, dir),
+      baseBranch: 'main',
+    });
+    assert.equal(r.closed, 'b1');
+    const mergeIdx = order.indexOf('merge');
+    const closeIdx = order.indexOf('close');
+    assert.ok(mergeIdx !== -1, 'merge must run');
+    assert.ok(closeIdx !== -1, 'close must run');
+    assert.ok(mergeIdx < closeIdx, 'merge must precede bd close');
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

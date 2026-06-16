@@ -107,3 +107,88 @@ test('an empty queue reports empty', async () => {
     assert.deepEqual(r.closedIds, []);
   });
 });
+
+test('merge runs before bd close (commits land on base before bead is closed)', async () => {
+  await withTick(async (dir) => {
+    const order: string[] = [];
+    const fn: ExecFn = async (cmd, args) => {
+      const key = [cmd, ...args].join(' ');
+      if (key.startsWith('bd ready'))
+        return {
+          stdout: JSON.stringify([{ id: 'a', status: 'open', inScopeDirs: ['src/a'] }]),
+          stderr: '',
+          code: 0,
+        };
+      if (key.startsWith('git merge-tree')) return { stdout: 'treeoid', stderr: '', code: 0 };
+      if (key.startsWith('git checkout') || key.startsWith('git merge')) {
+        order.push('merge');
+        return { stdout: '', stderr: '', code: 0 };
+      }
+      if (key.startsWith('bd close')) {
+        order.push('close');
+        return { stdout: '{}', stderr: '', code: 0 };
+      }
+      return { stdout: '{}', stderr: '', code: 0 };
+    };
+    await runParallelTick({
+      beads: new Beads(fn, new WriteQueue()),
+      worktrees: new Worktrees(fn, dir),
+      journal: new Journal(join(dir, 'journal.jsonl')),
+      log: new RunLog(join(dir, 'events.jsonl')),
+      ledger: new BudgetLedger(10, 0),
+      dealer: new MockAdapter({ a: out('a', 'dealer') }),
+      auditor: new MockAdapter({ a: out('a', 'auditor') }),
+      mechanicalGate: async () => ({ green: true }),
+      k: 1,
+      baseBranch: 'main',
+    });
+    const mergeIdx = order.indexOf('merge');
+    const closeIdx = order.indexOf('close');
+    assert.ok(mergeIdx !== -1, 'merge must run');
+    assert.ok(closeIdx !== -1, 'close must run');
+    assert.ok(mergeIdx < closeIdx, 'merge must precede bd close');
+  });
+});
+
+test('merge journal entry prevents double-merge on replay (idempotency)', async () => {
+  await withTick(async (dir) => {
+    const mergeCalls: string[] = [];
+    const fn: ExecFn = async (cmd, args) => {
+      const key = [cmd, ...args].join(' ');
+      if (key.startsWith('bd ready'))
+        return {
+          stdout: JSON.stringify([{ id: 'a', status: 'open', inScopeDirs: ['src/a'] }]),
+          stderr: '',
+          code: 0,
+        };
+      if (key.startsWith('git merge-tree')) return { stdout: 'treeoid', stderr: '', code: 0 };
+      if (key.startsWith('git checkout') || key.startsWith('git merge')) {
+        mergeCalls.push(key);
+        return { stdout: '', stderr: '', code: 0 };
+      }
+      return { stdout: '{}', stderr: '', code: 0 };
+    };
+    // Pre-seed journal with a 'merge' entry for bead 'a'
+    const journalPath = join(dir, 'journal.jsonl');
+    const preJournal = new Journal(journalPath);
+    await preJournal.append({ type: 'merge', beadId: 'a' });
+
+    await runParallelTick({
+      beads: new Beads(fn, new WriteQueue()),
+      worktrees: new Worktrees(fn, dir),
+      journal: new Journal(journalPath, await Journal.replay(journalPath)),
+      log: new RunLog(join(dir, 'events2.jsonl')),
+      ledger: new BudgetLedger(10, 0),
+      dealer: new MockAdapter({ a: out('a', 'dealer') }),
+      auditor: new MockAdapter({ a: out('a', 'auditor') }),
+      mechanicalGate: async () => ({ green: true }),
+      k: 1,
+      baseBranch: 'main',
+    });
+    assert.equal(
+      mergeCalls.filter((c) => c.startsWith('git merge')).length,
+      0,
+      'must not re-merge when journal has merge entry',
+    );
+  });
+});

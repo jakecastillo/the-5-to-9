@@ -4,6 +4,7 @@ import type { Journal } from './journal.ts';
 import type { BudgetLedger, RunLog } from './observability.ts';
 import { validateWorkerOutcome } from './schema.ts';
 import { specFor } from './worker-spec.ts';
+import type { Worktrees } from './worktree.ts';
 
 export interface TickDeps {
   beads: Beads;
@@ -16,6 +17,9 @@ export interface TickDeps {
   auditor: WorkerAdapter;
   mechanicalGate: (worktree: string) => Promise<{ green: boolean }>;
   worktreeRoot: string;
+  /** Used to merge the bead's branch onto baseBranch before close (spec §h02). */
+  worktrees: Worktrees;
+  baseBranch: string;
 }
 
 export interface TickResult {
@@ -69,6 +73,14 @@ export async function runSingleBeadTick(d: TickDeps): Promise<TickResult> {
   d.ledger.add(auditOut.costUsd);
   await d.log.write({ kind: 'audit', beadId: bead.id, status: auditOut.status });
   if (auditOut.status !== 'done') return { claimed: bead.id, closed: null, reason: 'audit-failed' };
+
+  // Cage integration: merge the bead's branch onto the base branch (exactly-once via journal).
+  const branch = `shift/${bead.id}`;
+  if (!d.journal.hasDone('merge', bead.id)) {
+    await d.worktrees.merge(d.baseBranch, branch);
+    await d.journal.append({ type: 'merge', beadId: bead.id });
+    await d.log.write({ kind: 'merge', beadId: bead.id });
+  }
 
   // Cage serialized close (exactly-once via the journal guard above).
   await d.journal.append({ type: 'close', beadId: bead.id });
