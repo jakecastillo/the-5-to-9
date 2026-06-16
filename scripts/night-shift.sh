@@ -46,7 +46,10 @@ f9_export_beads_dir
 
 PROMPT="$(cat <<EOF
 You are running ONE iteration of a The 5 to 9 night shift — a fresh process with clean
-context. Follow the running-the-shift skill. Do exactly one unit of work, then stop:
+context. Follow the running-the-shift skill. First, ground in THIS repository: read its
+AGENTS.md (and README / CONTRIBUTING) for the project's intent and guardrails, and obey
+them — the repo's own rules win (priority: this repo > The 5 to 9 > defaults). Then do
+exactly one unit of work, then stop:
 1) Claim the next ready bead: bd ready --claim --json. If none, print QUEUE-EMPTY and stop.
 2) Implement it as the Dealer, test first (TDD); fail-on-stub before you make it pass.
 3) Run the repo's real mechanical gate (typecheck/lint/test/build). No green, no close.
