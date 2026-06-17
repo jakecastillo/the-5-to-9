@@ -51,8 +51,8 @@ body:
     id: version
     attributes:
       label: The 5 to 9 version
-      description: Plugin version (see plugin manifest / CHANGELOG). Default is 0.1.0.
-      placeholder: "0.1.0"
+      description: Plugin version (see .claude-plugin/plugin.json or CHANGELOG).
+      placeholder: "0.2.0"
     validations:
       required: false
 

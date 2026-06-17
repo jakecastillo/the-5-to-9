@@ -2,7 +2,7 @@
 
 > Need a hand on the night shift? Here's where to knock.
 
-The 5 to 9 is early, experimental (`v0.1.0`) software maintained by one person on
+The 5 to 9 is early, experimental software maintained by one person on
 nights and weekends. Routing your ask to the right place gets you a faster answer.
 
 ## I have a question or an idea

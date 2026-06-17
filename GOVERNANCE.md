@@ -6,7 +6,7 @@
 
 The 5 to 9 is currently a **single-maintainer** project. [@jakecastillo](https://github.com/jakecastillo)
 is the floor manager: final call on scope, design, and what merges. This is the honest
-state of a `v0.1.0` experiment, not a permanent structure.
+state of an early-stage experiment, not a permanent structure.
 
 ## How decisions get made
 

@@ -2,7 +2,7 @@
 
 > The shift that works while you're off the clock.
 
-Thanks for picking up a shift. The 5 to 9 is an early, experimental (`v0.1.0`)
+Thanks for picking up a shift. The 5 to 9 is an early, experimental
 cross-tool AI night-shift crew — a Claude Code plugin today, over a portable core that
 also runs under Codex full-auto — that clocks in a crew of AI role-agents to work a
 [beads](https://github.com/steveyegge/beads) backlog in parallel and ralph-loop a
