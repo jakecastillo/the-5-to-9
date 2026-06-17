@@ -36,7 +36,8 @@ required=(
   "scripts/clock-out.sh" "scripts/guardrail-scan.sh" "scripts/night-shift.sh"
   "scripts/launch-driver.sh" "scripts/clock-in-dispatch.sh" "scripts/demo-shift.sh"
   "tests/run.sh" "tests/gate-test.sh" "tests/gate-cases.txt" "tests/smoke-shift.sh"
-  "tests/launch-driver-test.sh" "tests/demo-shift-test.sh"
+  "tests/launch-driver-test.sh" "tests/demo-shift-test.sh" "tests/shift-dashboard-test.sh"
+  "scripts/shift-dashboard.sh"
   "AGENTS.md" "CLAUDE.md" "README.md" "CONTRIBUTING.md" "CHANGELOG.md"
   "SECURITY.md" "CODE_OF_CONDUCT.md" "LICENSE" ".gitignore" "docs/INSTALL.md"
   "docs/ARCHITECTURE.md" "docs/SURFACES.md" "docs/BRANDING.md"
@@ -274,6 +275,15 @@ if [[ "$ld_rc" -eq 0 ]]; then
   ok "$(printf '%s' "$ld_out" | tail -n1)"
 else
   bad "clock-in-dispatch routing regressed:"; printf '%s\n' "$ld_out" | sed 's/^/   /'
+fi
+
+# ── 5h. shift dashboard bead-list renderer ───────────────────────────────────
+head_ "shift dashboard bead lists (phu.3.2)"
+sd_out="$(bash "$ROOT/tests/shift-dashboard-test.sh" 2>&1)"; sd_rc=$?
+if [[ "$sd_rc" -eq 0 ]]; then
+  ok "$(printf '%s' "$sd_out" | tail -n1)"
+else
+  bad "shift-dashboard bead lists regressed:"; printf '%s\n' "$sd_out" | sed 's/^/   /'
 fi
 
 # ── 6. Optional: shellcheck (never blocks) ───────────────────────────────────
