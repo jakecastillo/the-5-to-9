@@ -1,0 +1,7 @@
+{
+  "name": "the-5-to-9-workspace",
+  "private": true,
+  "engines": {
+    "node": ">=20.19"
+  }
+}
