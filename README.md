@@ -119,7 +119,7 @@ the-5-to-9 clock-in "ship the thing"
 | `clock-in [goal...]` | Open a shift: write state and switch to a dedicated `the-5-to-9/shift-<date>` branch (`--no-branch` to skip). |
 | `clock-out` | Close the shift, archive state, print the run summary. |
 | `status` | Print the current shift state + backlog counts (read-only). |
-| `dashboard` | One-shot dashboard view (interactive TUI lands in a later milestone). |
+| `dashboard` | One-shot dashboard view; `--watch` launches the live interactive Ink TUI (also the bare `the-5-to-9` default). |
 | `run` | Start a detached driver run (`--backend`, `--max-iterations`, `-K`). |
 | `config get\|set` | Read/write CLI config (`backend`, `maxIterations`) under `~/.config/the-5-to-9/`. |
 | `doctor` | Preflight: Node version, `bd`, and the selected backend CLI. |
