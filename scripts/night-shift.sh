@@ -43,13 +43,19 @@ if [[ -n "$max_iter" ]]; then
 fi
 
 f9_export_beads_dir
+target_root="$(f9_repo_root)"
 
 PROMPT="$(cat <<EOF
 You are running ONE iteration of a The 5 to 9 night shift — a fresh process with clean
-context. Follow the running-the-shift skill. First, ground in THIS repository: read its
-AGENTS.md (and README / CONTRIBUTING) for the project's intent and guardrails, and obey
-them — the repo's own rules win (priority: this repo > The 5 to 9 > defaults). Then do
-exactly one unit of work, then stop:
+context. Follow the running-the-shift skill.
+IDENTITY: The 5 to 9 is the TOOL you are running, NOT the project you are working on. Your
+TARGET repo is: ${target_root}. NEVER modify The 5 to 9's own source or config, and never
+treat its files/skills as the project — unless ${target_root} IS The 5 to 9 itself and the
+goal explicitly says so.
+First, ground in the TARGET repo (${target_root}): read ITS AGENTS.md (and README /
+CONTRIBUTING) for the project's intent and guardrails, obey them, and NEVER modify them
+(no-clobber) — the target repo's own rules win (priority: target repo > The 5 to 9 >
+defaults). Then do exactly one unit of work, then stop:
 1) Claim the next ready bead: bd ready --claim --json. If none, print QUEUE-EMPTY and stop.
 Impactful bead check: before editing, read the claimed bead's acceptance and keep a
 self-rating vs the goal in beads when the bead asks for strategy/config tuning. If the claimed bead is too broad

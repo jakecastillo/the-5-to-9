@@ -100,6 +100,16 @@ if grep -q 'Impactful bead check' "$prompt_file" \
 else
   no "night-shift prompt is missing autonomous-run quality rubric"
 fi
+
+# Identity isolation: the prompt must name the tool/target split so the worker grounds in
+# the TARGET repo and never edits The 5 to 9's own source. Bug: identity bleed.
+if grep -qi 'The 5 to 9 is the tool' "$prompt_file" \
+   && grep -qi 'never modify The 5 to 9' "$prompt_file"; then
+  ok "night-shift prompt names the tool/target split (no identity bleed)"
+else
+  no "night-shift prompt is missing the tool-vs-target distinction"
+fi
+
 printf '%s' "$gate_out" | grep -q 'irreversible gate self-check passed' \
   && ok "night-shift verifies the irreversible gate before launching a worker" \
   || no "night-shift did not verify the irreversible gate before launching a worker"

@@ -30,8 +30,12 @@ service loop, the test gate, read-parallel/write-serial, the iteration cap, no-c
 the irreversible-action gate. For backlog/memory conventions use **`shift-memory-beads`**;
 for model assignment use **`right-sizing-the-crew`**.
 
-**The target repo wins.** Read its `CLAUDE.md`/`AGENTS.md`/`CONTRIBUTING` and obey them
-first. Never modify them. Instruction priority: target repo > The 5 to 9 > defaults.
+**The target repo wins — and it is NOT The 5 to 9.** The 5 to 9 is the tool you are
+running, not the project. Work the **target repo** (`setup-shift` recorded its path as
+`target_repo:` in the shift state and announced it). Read the target's
+`CLAUDE.md`/`AGENTS.md`/`CONTRIBUTING` and obey them first; **never modify them**
+(no-clobber); and **never edit The 5 to 9's own source/skills** unless the target repo *is*
+The 5 to 9 and the goal says so. Instruction priority: target repo > The 5 to 9 > defaults.
 
 ## 3. Stand-up
 

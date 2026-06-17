@@ -2,7 +2,7 @@
 // Zero dependencies; run with `node --test`.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, writeFileSync, chmodSync, existsSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, chmodSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, delimiter } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -230,12 +230,23 @@ test('session-start.sh emits a SessionStart additionalContext envelope via json-
   ].join('\n'));
   chmodSync(fakeNode, 0o755);
 
+  // session-start.sh is quiet-by-default; it only emits an envelope when a shift is
+  // ACTIVE. Point CLAUDE_PROJECT_DIR at a temp repo with active shift state so the
+  // envelope mechanism (the thing under test) actually runs.
+  const ssDir = mkdtempSync(join(tmpdir(), 'f9-ss-proj-'));
+  mkdirSync(join(ssDir, '.claude/five-to-nine'), { recursive: true });
+  writeFileSync(
+    join(ssDir, '.claude/five-to-nine/shift.local.md'),
+    '---\nstatus: active\ngoal: "test shift"\n---\ntest shift\n',
+  );
+
   const result = spawnSync('bash', ['hooks/session-start.sh'], {
     cwd: process.cwd(),
     input: '',
     encoding: 'utf8',
     env: {
       ...process.env,
+      CLAUDE_PROJECT_DIR: ssDir,
       PATH: `${dir}${delimiter}${process.env.PATH || ''}`,
       REAL_NODE: process.execPath,
       F9_NODE_MARKER: marker,
@@ -255,12 +266,19 @@ test('session-start.sh emits a SessionStart additionalContext envelope via json-
 });
 
 test('session-start.sh emits SessionStart envelope via bash f9_json_string fallback when node is absent', () => {
+  const ssDir = mkdtempSync(join(tmpdir(), 'f9-ss-fb-'));
+  mkdirSync(join(ssDir, '.claude/five-to-nine'), { recursive: true });
+  writeFileSync(
+    join(ssDir, '.claude/five-to-nine/shift.local.md'),
+    '---\nstatus: active\ngoal: "test shift"\n---\ntest shift\n',
+  );
   const result = spawnSync('bash', ['hooks/session-start.sh'], {
     cwd: process.cwd(),
     input: '',
     encoding: 'utf8',
     env: {
       ...process.env,
+      CLAUDE_PROJECT_DIR: ssDir,
       F9_JSON_CONTEXT_SKIP_NODE: '1',
       F9_NO_JQ: '1',
     },
@@ -270,6 +288,22 @@ test('session-start.sh emits SessionStart envelope via bash f9_json_string fallb
   const parsed = JSON.parse(result.stdout.trim());
   assert.equal(parsed.hookSpecificOutput.hookEventName, 'SessionStart');
   assert.ok(parsed.hookSpecificOutput.additionalContext.length > 0);
+});
+
+test('session-start.sh is SILENT (no envelope) when no shift is active — no identity bleed', () => {
+  const idleDir = mkdtempSync(join(tmpdir(), 'f9-ss-idle-'));
+  const result = spawnSync('bash', ['hooks/session-start.sh'], {
+    cwd: process.cwd(),
+    input: '',
+    encoding: 'utf8',
+    env: { ...process.env, CLAUDE_PROJECT_DIR: idleDir },
+  });
+  assert.equal(result.status, 0, `session-start.sh must always exit 0, stderr: ${result.stderr}`);
+  assert.equal(
+    result.stdout.trim(),
+    '',
+    `idle SessionStart must emit nothing (quiet-by-default), got: ${result.stdout}`,
+  );
 });
 
 test('session-start.sh always exits 0', () => {

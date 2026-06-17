@@ -31,9 +31,13 @@ Models are defaults — see the `right-sizing-the-crew` skill to escalate/overri
 
 ## Clock in (minimal bootstrap)
 
-1. **Read the room, cheaply.** One ephemeral pass reads the repo's intent + guardrails
-   (`README`, `CLAUDE.md`/`AGENTS.md`, `CONTRIBUTING`, test/lint/CI config) and returns
-   a ≤1-page brief. Do not front-load everything; load just-in-time.
+1. **Read the room, cheaply — of the TARGET repo, not the tool.** The 5 to 9 is the tool
+   you are running, **not** the project you are working on. Ground in the **target repo**
+   (the one the user is in — its `shift.local.md` records `target_repo:`): one ephemeral
+   pass reads ITS intent + guardrails (`README`, `CLAUDE.md`/`AGENTS.md`, `CONTRIBUTING`,
+   test/lint/CI config) and returns a ≤1-page brief. **Never** read the-5-to-9's own
+   `AGENTS.md`/skills as if they were the project, and **never** modify The 5 to 9's own
+   source — unless the target repo *is* The 5 to 9 and the goal says so. Load just-in-time.
 2. **Branch.** Work on a dedicated shift branch (`the-5-to-9/shift-<date>`), never `main`
    or prod. Create it if absent.
 3. **Beads is the brain.** Ensure `bd` is initialized (`bd doctor` / `bd init`). See the

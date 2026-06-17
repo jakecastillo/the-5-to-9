@@ -28,11 +28,35 @@ unset BEADS_DIR
 state="$TMP/.claude/five-to-nine/shift.local.md"
 
 # 1. setup-shift writes an active shift state.
-bash "$ROOT/scripts/setup-shift.sh" --no-branch "smoke goal" >/dev/null 2>&1
+setup_out="$(bash "$ROOT/scripts/setup-shift.sh" --no-branch "smoke goal" 2>&1)"
 if [[ -f "$state" ]] && grep -q '^status: active' "$state"; then
   ok "setup-shift wrote active shift state"
 else
   no "setup-shift did not write active state"
+fi
+
+# 1b. identity: the resolved TARGET repo is recorded in state + announced (so the crew
+# grounds in the target, not in The 5 to 9 itself). Bug: identity bleed.
+if grep -q "^target_repo: $TMP\$" "$state"; then
+  ok "setup-shift records target_repo: \$CLAUDE_PROJECT_DIR in state"
+else
+  no "setup-shift did not record target_repo: $TMP (got: $(grep '^target_repo:' "$state" 2>/dev/null || echo none))"
+fi
+printf '%s' "$setup_out" | grep -qi "target repo: $TMP" \
+  && ok "setup-shift announces the resolved target repo" \
+  || no "setup-shift did not announce 'Target repo: $TMP' (got: $setup_out)"
+
+# 1c. data-leak: the-5-to-9 state must be excluded from the TARGET repo's git via
+# .git/info/exclude (LOCAL, non-clobber) — never the committed .gitignore. Bug: data leak.
+if grep -q '\.claude/five-to-nine/' "$TMP/.git/info/exclude" 2>/dev/null; then
+  ok "setup-shift excludes .claude/five-to-nine/ via .git/info/exclude (no leak, no-clobber)"
+else
+  no "setup-shift did not add .claude/five-to-nine/ to .git/info/exclude"
+fi
+if [[ -f "$TMP/.gitignore" ]]; then
+  no "setup-shift created/edited the target's .gitignore (must be no-clobber)"
+else
+  ok "setup-shift did not clobber the target's .gitignore"
 fi
 
 # 2. no-clobber: with no active shift, the Stop hook is silent (allows stop).
@@ -40,7 +64,22 @@ mv "$state" "$state.bak" 2>/dev/null || true
 out="$(printf '{}' | bash "$ROOT/hooks/shift-loop.sh" 2>/dev/null)"
 [[ -z "$out" ]] && ok "Stop hook is a no-op when no shift is active (no-clobber)" \
                 || no "Stop hook should be silent with no active shift (got: $out)"
+
+# 2b. quiet-by-default: with NO active shift, SessionStart must inject NOTHING about
+# The 5 to 9 — normal tasks must not inherit the crew's identity. Bug: identity bleed.
+ss_idle="$(printf '{}' | bash "$ROOT/hooks/session-start.sh" 2>/dev/null)"
+if printf '%s' "$ss_idle" | grep -qiE '5 to 9|night shift|clock in'; then
+  no "SessionStart leaked The 5 to 9 context into a no-shift session (got: $ss_idle)"
+else
+  ok "SessionStart is silent when no shift is active (no identity bleed)"
+fi
 mv "$state.bak" "$state" 2>/dev/null || true
+
+# 2c. with an ACTIVE shift, SessionStart DOES re-prime (the one time it should speak).
+ss_active="$(printf '{}' | bash "$ROOT/hooks/session-start.sh" 2>/dev/null)"
+printf '%s' "$ss_active" | grep -qiE 'shift is active|active shift' \
+  && ok "SessionStart re-primes only when a shift is active" \
+  || no "SessionStart did not re-prime on an active shift (got: $ss_active)"
 
 if command -v bd >/dev/null 2>&1; then
   ( cd "$TMP" && bd init >/dev/null 2>&1 && \
