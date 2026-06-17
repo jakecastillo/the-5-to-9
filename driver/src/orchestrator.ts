@@ -77,8 +77,8 @@ export async function runSingleBeadTick(d: TickDeps): Promise<TickResult> {
   // Cage integration: merge the bead's branch onto the base branch (exactly-once via journal).
   const branch = `shift/${bead.id}`;
   if (!d.journal.hasDone('merge', bead.id)) {
-    await d.worktrees.merge(d.baseBranch, branch);
     await d.journal.append({ type: 'merge', beadId: bead.id });
+    await d.worktrees.merge(d.baseBranch, branch);
     await d.log.write({ kind: 'merge', beadId: bead.id });
   }
 

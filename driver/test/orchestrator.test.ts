@@ -176,3 +176,62 @@ test('single-bead tick: merge runs before bd close', async () => {
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+test('WAL ordering (orchestrator): journal merge entry is written BEFORE worktrees.merge() executes', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'f9orch-'));
+  try {
+    const eventOrder: string[] = [];
+    const fn: ExecFn = async (cmd, args) => {
+      const key = [cmd, ...args].join(' ');
+      if (key.startsWith('bd ready'))
+        return {
+          stdout: JSON.stringify([{ id: 'b1', status: 'open', inScopeDirs: ['src'] }]),
+          stderr: '',
+          code: 0,
+        };
+      if (key.startsWith('git checkout') || key.startsWith('git merge ')) {
+        eventOrder.push('worktrees.merge');
+        return { stdout: '', stderr: '', code: 0 };
+      }
+      return { stdout: '{}', stderr: '', code: 0 };
+    };
+    const journalPath = join(dir, 'journal-wal.jsonl');
+    const realJournal = new Journal(journalPath);
+    const proxyJournal = new Proxy(realJournal, {
+      get(target, prop) {
+        if (prop === 'append') {
+          return async (e: { type: string; beadId?: string }) => {
+            if (e.type === 'merge') eventOrder.push('journal.merge');
+            return target.append(e as Parameters<typeof target.append>[0]);
+          };
+        }
+        return (target as unknown as Record<string | symbol, unknown>)[prop];
+      },
+    });
+
+    const beads = new Beads(fn, new WriteQueue());
+    await runSingleBeadTick({
+      beads,
+      journal: proxyJournal as Journal,
+      log: new RunLog(join(dir, 'events-wal.jsonl')),
+      ledger: new BudgetLedger(1, 0),
+      dealer: new MockAdapter(dealerScript),
+      auditor: new MockAdapter(auditorScript),
+      mechanicalGate: async () => ({ green: true }),
+      worktreeRoot: dir,
+      worktrees: new Worktrees(fn, dir),
+      baseBranch: 'main',
+    });
+
+    const journalIdx = eventOrder.indexOf('journal.merge');
+    const mergeIdx = eventOrder.indexOf('worktrees.merge');
+    assert.ok(journalIdx !== -1, 'journal merge entry must be written');
+    assert.ok(mergeIdx !== -1, 'worktrees.merge must run');
+    assert.ok(
+      journalIdx < mergeIdx,
+      `journal.merge (${journalIdx}) must precede worktrees.merge (${mergeIdx}); order: ${JSON.stringify(eventOrder)}`,
+    );
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
