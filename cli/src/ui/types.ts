@@ -48,6 +48,8 @@ export interface AppState {
   gate: GateEvent | null;
   /** Whether a run is currently being streamed. */
   running: boolean;
+  /** Whether the Run Stream auto-scrolls to the tail (follow mode). */
+  follow: boolean;
 }
 
 /** The default initial UI state (no data yet, Status focused). */
@@ -61,5 +63,6 @@ export function initialState(): AppState {
     modal: null,
     gate: null,
     running: false,
+    follow: true,
   };
 }

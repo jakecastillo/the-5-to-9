@@ -93,3 +93,45 @@ test('idle shift renders without crashing', async () => {
   expect(lastFrame()).toMatch(/no active shift|The 5 to 9/);
   unmount();
 });
+
+test('follow defaults to on, and `f` on the focused stream pane toggles it', async () => {
+  const d = testDeps();
+  const { lastFrame, stdin, unmount } = render(<App deps={d} />);
+  await vi.waitFor(() => expect(lastFrame()).toContain('Ship auth refactor'));
+  // Default follow is ON (the RunStreamPane header reflects ui.follow).
+  expect(lastFrame()).toMatch(/follow ▸ on/);
+  stdin.write('3'); // focus the Run Stream pane so `f` is handled
+  await delay();
+  stdin.write('f'); // toggle follow off
+  await delay();
+  expect(lastFrame()).toMatch(/follow · off/);
+  stdin.write('f'); // toggle back on
+  await delay();
+  expect(lastFrame()).toMatch(/follow ▸ on/);
+  unmount();
+});
+
+test('`f` does NOT toggle follow unless the stream pane is focused', async () => {
+  const d = testDeps();
+  const { lastFrame, stdin, unmount } = render(<App deps={d} />);
+  await vi.waitFor(() => expect(lastFrame()).toContain('Ship auth refactor'));
+  // Backlog focused (default is status; move to backlog explicitly).
+  stdin.write('2');
+  await delay();
+  expect(lastFrame()).toMatch(/follow ▸ on/); // still on
+  stdin.write('f'); // not on the stream pane → no toggle
+  await delay();
+  expect(lastFrame()).toMatch(/follow ▸ on/);
+  unmount();
+});
+
+test('two rapid `r` presses start the run only once (no double-start)', async () => {
+  const d = testDeps();
+  const { lastFrame, stdin, unmount } = render(<App deps={d} />);
+  await vi.waitFor(() => expect(lastFrame()).toContain('Ship auth refactor'));
+  stdin.write('r');
+  stdin.write('r'); // a rapid second press must be ignored while running
+  await delay();
+  expect(d.startRun).toHaveBeenCalledTimes(1);
+  unmount();
+});
