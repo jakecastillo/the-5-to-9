@@ -345,6 +345,9 @@ test('gate APPROVE → execs the EXACT approved command, journals gate(approved)
     assert.equal(stub.requests[0]?.command, OUTWARD);
     // a 'gate' event was journaled (approved) and the bead proceeds to close.
     assert.equal(journal.hasDone('gate', 'b1'), true);
+    // bead 5va: a distinct 'gate-performed' marker is journaled AFTER a successful exec,
+    // so a later resume knows the action ran exactly once (vs. the indeterminate window).
+    assert.equal(journal.hasDone('gate-performed', 'b1'), true);
     assert.equal(r.closed, 'b1');
   } finally {
     await rm(dir, { recursive: true, force: true });
@@ -468,13 +471,15 @@ test('gate consent THROWS → exec NEVER called, treated as DENY (gate-denied)',
   }
 });
 
-test('gate resume: hasDone(gate) → the approved action is NOT re-performed', async () => {
+test('gate resume: approve + gate-performed marker → NOT re-performed, bead closes (done)', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'f9gate-'));
   try {
     const path = join(dir, 'journal.jsonl');
-    // Simulate a prior crash AFTER the gate decision was journaled.
+    // Simulate a prior crash AFTER the action was approved AND successfully performed:
+    // BOTH the approved 'gate' AND the distinct 'gate-performed' marker are journaled.
     const pre = new Journal(path);
     await pre.append({ type: 'gate', beadId: 'b1', approved: true });
+    await pre.append({ type: 'gate-performed', beadId: 'b1', command: OUTWARD });
     const { fn, performed } = recordingExec();
     const beads = new Beads(fn, new WriteQueue());
     const journal = new Journal(path, await Journal.replay(path));
@@ -503,10 +508,271 @@ test('gate resume: hasDone(gate) → the approved action is NOT re-performed', a
       exec: fn,
       stateDir: dir,
     });
-    // (4) idempotent-resume: no re-perform, no re-consult; the bead proceeds.
+    // (4) idempotent-resume: a PERFORMED action is not re-run, not re-consulted; bead closes.
     assert.equal(performed.length, 0, 'an already-performed action is not re-run');
     assert.equal(consentConsulted, false, 'consent is not re-requested on resume');
     assert.equal(r.closed, 'b1');
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+// ── Bead 5va: close the journaled-approve-but-not-exec'd window ───────────────
+//
+// The defect: runGate journaled an APPROVED 'gate' BEFORE exec and guarded resume
+// with hasDone('gate'). A crash BETWEEN the approve-journal and a successful exec
+// meant resume saw hasDone('gate')===true, SKIPPED the gate, and the bead could
+// CLOSE as done WITHOUT the action ever running. The fix journals a DISTINCT
+// 'gate-performed' marker AFTER a successful exec; resume keys on that marker.
+//
+// INVARIANT: bead-closed implies action-performed (or surfaced) — never silently
+// skipped-and-closed; and NEVER double-perform an irreversible action on resume.
+
+test('5va resume: approve journaled but NO gate-performed → indeterminate, bead NOT closed, NO re-exec', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'f9gate-'));
+  try {
+    const path = join(dir, 'journal.jsonl');
+    // Simulate the crash window: the APPROVE was journaled but the exec never
+    // produced its 'gate-performed' marker (it may have partially run).
+    const pre = new Journal(path);
+    await pre.append({ type: 'gate', beadId: 'b1', approved: true });
+    const { fn, performed } = recordingExec();
+    const beads = new Beads(fn, new WriteQueue());
+    const journal = new Journal(path, await Journal.replay(path));
+    let consentConsulted = false;
+    const r = await runSingleBeadTick({
+      beads,
+      journal,
+      log: new RunLog(join(dir, 'events.jsonl')),
+      ledger: new BudgetLedger(1, 0),
+      dealer: dealerWithAction(OUTWARD),
+      auditor: new MockAdapter(auditorScript),
+      mechanicalGate: async () => ({ green: true }),
+      worktreeRoot: dir,
+      worktrees: new Worktrees(fn, dir),
+      baseBranch: 'main',
+      classify: () => ({ denied: true, segment: OUTWARD }),
+      requestConsent: () => {
+        consentConsulted = true;
+        throw new Error('must not re-request consent for an approved action');
+      },
+      awaitResolution: async () => {
+        consentConsulted = true;
+        throw new Error('must not await on resume');
+      },
+      exec: fn,
+      stateDir: dir,
+    });
+    // bead-closed != action-done: the bead is NOT closed, NOTHING is re-exec'd, and
+    // the consent is NOT re-asked (an irreversible op may have partially run).
+    assert.equal(performed.length, 0, 'an indeterminate action is NEVER re-exec`d on resume');
+    assert.equal(consentConsulted, false, 'indeterminate does not blindly re-ask consent');
+    assert.equal(r.closed, null, 'a journaled-but-unperformed approve does NOT close the bead');
+    assert.equal(r.reason, 'gate-indeterminate');
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('5va: a crash AFTER approve-journal but BEFORE exec → next run does NOT close, does NOT double-exec', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'f9gate-'));
+  try {
+    const path = join(dir, 'journal.jsonl');
+    // First run: approve resolves, but the perform exec THROWS — simulating a crash
+    // mid-exec. runGate's catch returns 'denied'; crucially NO 'gate-performed' marker
+    // is written, so the action's completion is INDETERMINATE.
+    const performedRun1: string[][] = [];
+    const fn1: ExecFn = async (cmd, args): Promise<ExecResult> => {
+      const key = [cmd, ...args].join(' ');
+      if (key.startsWith('bd ready'))
+        return {
+          stdout: JSON.stringify([{ id: 'b1', status: 'open', inScopeDirs: ['src'] }]),
+          stderr: '',
+          code: 0,
+        };
+      if (cmd === 'bd' || cmd === 'git') return { stdout: '{}', stderr: '', code: 0 };
+      // The PERFORM call: record it, then throw mid-flight (crash during the irreversible op).
+      performedRun1.push([cmd, ...args]);
+      throw new Error('crash during exec');
+    };
+    const journal1 = new Journal(path);
+    const stubApprove = consentStub({
+      id: 'consent-id-1',
+      approved: true,
+      token: 'gh',
+      resolvedAt: '2026-06-17T00:00:01Z',
+    });
+    const r1 = await runSingleBeadTick({
+      beads: new Beads(fn1, new WriteQueue()),
+      journal: journal1,
+      log: new RunLog(join(dir, 'events1.jsonl')),
+      ledger: new BudgetLedger(1, 0),
+      dealer: dealerWithAction(OUTWARD),
+      auditor: new MockAdapter(auditorScript),
+      mechanicalGate: async () => ({ green: true }),
+      worktreeRoot: dir,
+      worktrees: new Worktrees(fn1, dir),
+      baseBranch: 'main',
+      classify: () => ({ denied: true, segment: OUTWARD }),
+      requestConsent: stubApprove.requestConsent,
+      awaitResolution: stubApprove.awaitResolution,
+      exec: fn1,
+      stateDir: dir,
+    });
+    // The exec was attempted exactly once and the bead did NOT close (exec threw).
+    assert.equal(performedRun1.length, 1, 'the perform was attempted once');
+    assert.equal(r1.closed, null, 'a thrown exec must not close the bead');
+    assert.equal(journal1.hasDone('gate', 'b1'), true, 'the approve WAS journaled');
+    assert.equal(
+      journal1.hasDone('gate-performed', 'b1'),
+      false,
+      'no performed-marker after a thrown exec',
+    );
+
+    // Second run (resume): replay the journal. The approve is present but NOT performed
+    // → INDETERMINATE. The bead must NOT close and the action must NOT re-exec.
+    const { fn: fn2, performed: performedRun2 } = recordingExec();
+    const journal2 = new Journal(path, await Journal.replay(path));
+    const r2 = await runSingleBeadTick({
+      beads: new Beads(fn2, new WriteQueue()),
+      journal: journal2,
+      log: new RunLog(join(dir, 'events2.jsonl')),
+      ledger: new BudgetLedger(1, 0),
+      dealer: dealerWithAction(OUTWARD),
+      auditor: new MockAdapter(auditorScript),
+      mechanicalGate: async () => ({ green: true }),
+      worktreeRoot: dir,
+      worktrees: new Worktrees(fn2, dir),
+      baseBranch: 'main',
+      classify: () => ({ denied: true, segment: OUTWARD }),
+      requestConsent: () => {
+        throw new Error('must not re-request consent on resume');
+      },
+      awaitResolution: async () => {
+        throw new Error('must not await on resume');
+      },
+      exec: fn2,
+      stateDir: dir,
+    });
+    assert.equal(performedRun2.length, 0, 'the irreversible action is NEVER re-exec`d on resume');
+    assert.equal(r2.closed, null, 'an indeterminate action does NOT close the bead');
+    assert.equal(r2.reason, 'gate-indeterminate');
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('5va: full approve+exec writes gate-performed; resume treats as done with NO re-exec', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'f9gate-'));
+  try {
+    const path = join(dir, 'journal.jsonl');
+    // First run: approve resolves AND the exec succeeds → both 'gate' and
+    // 'gate-performed' are journaled, the bead closes.
+    const { fn: fn1, performed: performedRun1 } = recordingExec();
+    const journal1 = new Journal(path);
+    const stubApprove = consentStub({
+      id: 'consent-id-1',
+      approved: true,
+      token: 'gh',
+      resolvedAt: '2026-06-17T00:00:01Z',
+    });
+    const r1 = await runSingleBeadTick({
+      beads: new Beads(fn1, new WriteQueue()),
+      journal: journal1,
+      log: new RunLog(join(dir, 'events1.jsonl')),
+      ledger: new BudgetLedger(1, 0),
+      dealer: dealerWithAction(OUTWARD),
+      auditor: new MockAdapter(auditorScript),
+      mechanicalGate: async () => ({ green: true }),
+      worktreeRoot: dir,
+      worktrees: new Worktrees(fn1, dir),
+      baseBranch: 'main',
+      classify: () => ({ denied: true, segment: OUTWARD }),
+      requestConsent: stubApprove.requestConsent,
+      awaitResolution: stubApprove.awaitResolution,
+      exec: fn1,
+      stateDir: dir,
+    });
+    assert.equal(performedRun1.length, 1, 'performed exactly once on the first run');
+    assert.deepEqual(performedRun1[0], ['bash', '-c', OUTWARD]);
+    assert.equal(r1.closed, 'b1');
+    assert.equal(journal1.hasDone('gate-performed', 'b1'), true, 'performed-marker written');
+
+    // Reset the close marker only is not needed — we resume with a FRESH journal replay
+    // but BEFORE the close was applied to beads (simulate crash after gate-performed,
+    // before close). We strip the 'close' line to model that window.
+    const replayed = await Journal.replay(path);
+    const withoutClose = replayed.filter((e) => e.type !== 'close');
+    const journal2 = new Journal(join(dir, 'journal2.jsonl'), withoutClose);
+    const { fn: fn2, performed: performedRun2 } = recordingExec();
+    const r2 = await runSingleBeadTick({
+      beads: new Beads(fn2, new WriteQueue()),
+      journal: journal2,
+      log: new RunLog(join(dir, 'events2.jsonl')),
+      ledger: new BudgetLedger(1, 0),
+      dealer: dealerWithAction(OUTWARD),
+      auditor: new MockAdapter(auditorScript),
+      mechanicalGate: async () => ({ green: true }),
+      worktreeRoot: dir,
+      worktrees: new Worktrees(fn2, dir),
+      baseBranch: 'main',
+      classify: () => ({ denied: true, segment: OUTWARD }),
+      requestConsent: () => {
+        throw new Error('must not re-request consent on resume');
+      },
+      awaitResolution: async () => {
+        throw new Error('must not await on resume');
+      },
+      exec: fn2,
+      stateDir: dir,
+    });
+    // The performed-marker present → treated as done, NO re-exec, the bead closes.
+    assert.equal(performedRun2.length, 0, 'a performed action is NEVER re-exec`d on resume');
+    assert.equal(r2.closed, 'b1', 'a performed-then-resumed bead closes as done');
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('5va: a DENY resume stays a clean non-performed decision (gate-denied, never indeterminate)', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'f9gate-'));
+  try {
+    const path = join(dir, 'journal.jsonl');
+    // A denied 'gate' (approved:false) with no performed-marker is a CLEAN decision —
+    // it must resume as 'gate-denied', not as the indeterminate window.
+    const pre = new Journal(path);
+    await pre.append({ type: 'gate', beadId: 'b1', approved: false });
+    const { fn, performed } = recordingExec();
+    const beads = new Beads(fn, new WriteQueue());
+    const journal = new Journal(path, await Journal.replay(path));
+    let consentConsulted = false;
+    const r = await runSingleBeadTick({
+      beads,
+      journal,
+      log: new RunLog(join(dir, 'events.jsonl')),
+      ledger: new BudgetLedger(1, 0),
+      dealer: dealerWithAction(OUTWARD),
+      auditor: new MockAdapter(auditorScript),
+      mechanicalGate: async () => ({ green: true }),
+      worktreeRoot: dir,
+      worktrees: new Worktrees(fn, dir),
+      baseBranch: 'main',
+      classify: () => ({ denied: true, segment: OUTWARD }),
+      requestConsent: () => {
+        consentConsulted = true;
+        throw new Error('must not re-request consent on a resumed deny');
+      },
+      awaitResolution: async () => {
+        consentConsulted = true;
+        throw new Error('must not await on resume');
+      },
+      exec: fn,
+      stateDir: dir,
+    });
+    assert.equal(performed.length, 0, 'a denied action performs nothing on resume');
+    assert.equal(consentConsulted, false, 'a denied action is not re-asked on resume');
+    assert.equal(r.closed, null, 'a denied action does not close the bead');
+    assert.equal(r.reason, 'gate-denied', 'a clean deny stays gate-denied, not indeterminate');
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
