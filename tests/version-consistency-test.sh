@@ -21,7 +21,7 @@ files=(
   .claude-plugin/plugin.json .claude-plugin/marketplace.json
   .codex-plugin/plugin.json .cursor-plugin/plugin.json
   .agents/plugins/the-5-to-9/.codex-plugin/plugin.json
-  driver/package.json CITATION.cff README.md
+  driver/package.json cli/package.json CITATION.cff README.md
 )
 for f in "${files[@]}"; do
   mkdir -p "$SANDBOX/$(dirname "$f")"; cp "$ROOT/$f" "$SANDBOX/$f"

@@ -27,6 +27,7 @@ record ".cursor-plugin/plugin.json"      "$(json_version  "$ROOT/.cursor-plugin/
 record ".agents/plugins/the-5-to-9/.codex-plugin/plugin.json" \
   "$(json_version "$ROOT/.agents/plugins/the-5-to-9/.codex-plugin/plugin.json")"
 record "driver/package.json"             "$(json_version  "$ROOT/driver/package.json")"
+record "cli/package.json"                "$(json_version  "$ROOT/cli/package.json")"
 record "CITATION.cff"                    "$(cff_version    "$ROOT/CITATION.cff")"
 record "README.md (badge)"               "$(badge_version "$ROOT/README.md")"
 
