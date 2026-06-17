@@ -34,14 +34,15 @@ required=(
   "hooks/irreversible-gate.mjs" "hooks/gate.test.mjs"
   "scripts/lib/common.sh" "scripts/beads-helpers.sh" "scripts/setup-shift.sh"
   "scripts/clock-out.sh" "scripts/guardrail-scan.sh" "scripts/night-shift.sh"
-  "scripts/launch-driver.sh" "scripts/clock-in-dispatch.sh"
+  "scripts/launch-driver.sh" "scripts/clock-in-dispatch.sh" "scripts/demo-shift.sh"
   "tests/run.sh" "tests/gate-test.sh" "tests/gate-cases.txt" "tests/smoke-shift.sh"
-  "tests/launch-driver-test.sh"
+  "tests/launch-driver-test.sh" "tests/demo-shift-test.sh"
   "AGENTS.md" "CLAUDE.md" "README.md" "CONTRIBUTING.md" "CHANGELOG.md"
   "SECURITY.md" "CODE_OF_CONDUCT.md" "LICENSE" ".gitignore" "docs/INSTALL.md"
   "docs/ARCHITECTURE.md" "docs/SURFACES.md" "docs/BRANDING.md"
   "docs/superpowers/specs/2026-06-14-the-5-to-9-design.md"
   "docs/superpowers/plans/2026-06-14-the-5-to-9-plan.md"
+  "docs/sample-shift-report.md"
 )
 missing=0
 for f in "${required[@]}"; do

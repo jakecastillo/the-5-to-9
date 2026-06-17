@@ -80,6 +80,11 @@ Other commands: `/shift-status` (peek at the loop mid-run) and `/the-5-to-9` (he
 The full set of diagrams — crew topology, the safety gate, and the cross-tool design — lives in
 **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**.
 
+Want to see it run? **[docs/sample-shift-report.md](docs/sample-shift-report.md)** is a captured
+mechanics demo — setup through QUEUE-EMPTY through clock-out — driven by a scripted cook (not
+an LLM) so it runs offline and is fully reproducible. Run `bash scripts/demo-shift.sh` to
+regenerate it yourself.
+
 ---
 
 ## Two ways to run
