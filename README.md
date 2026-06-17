@@ -102,6 +102,28 @@ bash scripts/night-shift.sh --max-iterations 25
 **3. SDK driver — `scripts/clock-in-dispatch.sh --driver`**
 A deterministic TypeScript runtime (K=1 on subscription backends like Claude/Codex; K≥2 needs `--backend api`). Requires Node ≥ 20 and `pnpm install` in `driver/`.
 
+**4. Standalone CLI — `the-5-to-9` (no Claude Code required)**
+A pure-Node CLI you can install from npm and run anywhere. It drives the same shift state, the same beads backlog, and the same irreversible-action gate as the plugin — just from your own terminal. Requires Node ≥ 20.19.
+
+```bash
+# one-off
+npx the-5-to-9 status
+
+# or install globally
+npm i -g the-5-to-9
+the-5-to-9 clock-in "ship the thing"
+```
+
+| Subcommand | What it does |
+| --- | --- |
+| `clock-in [goal...]` | Open a shift: write state and switch to a dedicated `the-5-to-9/shift-<date>` branch (`--no-branch` to skip). |
+| `clock-out` | Close the shift, archive state, print the run summary. |
+| `status` | Print the current shift state + backlog counts (read-only). |
+| `dashboard` | One-shot dashboard view (interactive TUI lands in a later milestone). |
+| `run` | Start a detached driver run (`--backend`, `--max-iterations`, `-K`). |
+| `config get\|set` | Read/write CLI config (`backend`, `maxIterations`) under `~/.config/the-5-to-9/`. |
+| `doctor` | Preflight: Node version, `bd`, and the selected backend CLI. |
+
 Same crew, same gates, same beads backlog every way — the difference is how long you leave it alone and which runtime drives.
 
 **Watch any run** read-only with `/shift-status`, or the live TUI dashboard:
