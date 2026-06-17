@@ -2,6 +2,13 @@ import { type SpawnOptions, spawn as realSpawn } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+  type PendingConsent,
+  type Resolution,
+  awaitResolution as defaultAwaitResolution,
+  requestConsent as defaultRequestConsent,
+} from '../consent.ts';
+import { type GateVerdict, classifyCommand } from '../gate.ts';
 import { stateDir as defaultStateDir } from '../paths.ts';
 
 /** A handle to a detached driver run. */
@@ -85,4 +92,115 @@ export async function startRun(opts: RunOpts, deps: RunDeps = {}): Promise<RunHa
   child.unref();
 
   return { pid: child.pid ?? -1, journalPath, detached: true };
+}
+
+// ── Interactive consent checkpoint (Phase 1b) ────────────────────────────────
+
+/** The flagged action a run is about to take. */
+export interface CheckpointAction {
+  command: string;
+  beadId?: string | null;
+  role?: string | null;
+}
+
+/** A minimal journal sink — the driver's Journal satisfies this (append). */
+export interface JournalSink {
+  append(event: { type: 'gate'; [k: string]: unknown }): Promise<void> | void;
+}
+
+/** Everything injectable so the checkpoint is testable with no TTY / no sleep. */
+export interface CheckpointDeps {
+  /** Where consent records live (defaults to stateDir()). */
+  stateDir?: string;
+  /** Journal sink for the `'gate'` event. */
+  journal: JournalSink;
+  /** The irreversible classifier (defaults to gate.classifyCommand). */
+  classify?: (cmd: string) => GateVerdict;
+  /** Write the pending consent (defaults to consent.requestConsent). */
+  requestConsent?: (input: {
+    command: string;
+    category: string;
+    beadId?: string | null;
+    role?: string | null;
+  }) => PendingConsent;
+  /** Await the resolution (defaults to consent.awaitResolution). */
+  awaitResolution?: (id: string) => Promise<Resolution>;
+  /** Injected clock for the default awaitResolution timeout (tests). */
+  now?: () => number;
+  /** Timeout for the default awaitResolution. */
+  timeoutMs?: number;
+  /** Poll cadence for the default awaitResolution. */
+  pollMs?: number;
+}
+
+/** The outcome of a consent checkpoint. */
+export interface CheckpointResult {
+  /** True when the run may take the action (benign, or human-approved). */
+  proceed: boolean;
+  /** True when a flagged action was skipped (denied or timed out). */
+  skipped: boolean;
+  /** The resolution, when consent was requested. */
+  resolution?: Resolution;
+}
+
+/**
+ * The orchestrator-level consent gate (Phase 1b). At the point a run would
+ * otherwise hard-stop on an irreversible/outward action, it asks a human:
+ *
+ *  - benign command           → proceed, no consent requested.
+ *  - flagged + APPROVED       → proceed; journal a `'gate'` event (approved).
+ *  - flagged + DENIED/TIMEOUT → skip the action, record it, journal a `'gate'`
+ *                               event (approved=false) and continue. Never
+ *                               silent-allows — `awaitResolution` is fail-closed
+ *                               (default DENY on timeout / parse error).
+ *
+ * This does NOT change the sandboxed-worker model or its `IRREVERSIBLE_DENY`
+ * rules; it governs only the decision to proceed past a flagged action.
+ */
+export async function consentCheckpoint(
+  action: CheckpointAction,
+  deps: CheckpointDeps,
+): Promise<CheckpointResult> {
+  const classify = deps.classify ?? classifyCommand;
+  const verdict = classify(action.command);
+  if (!verdict.denied) {
+    return { proceed: true, skipped: false };
+  }
+
+  const stateDir = deps.stateDir;
+  const request =
+    deps.requestConsent ?? ((input) => defaultRequestConsent(input, { stateDir, now: deps.now }));
+  const await_ =
+    deps.awaitResolution ??
+    ((id) =>
+      defaultAwaitResolution(id, {
+        stateDir,
+        now: deps.now,
+        timeoutMs: deps.timeoutMs,
+        pollMs: deps.pollMs,
+      }));
+
+  const pending = request({
+    command: action.command,
+    category: verdict.segment ?? action.command,
+    beadId: action.beadId ?? null,
+    role: action.role ?? null,
+  });
+  const resolution = await await_(pending.id);
+
+  await deps.journal.append({
+    type: 'gate',
+    beadId: action.beadId ?? undefined,
+    role: action.role ?? undefined,
+    command: action.command,
+    segment: verdict.segment,
+    approved: resolution.approved,
+    resolvedAt: resolution.resolvedAt,
+  });
+
+  if (resolution.approved) {
+    return { proceed: true, skipped: false, resolution };
+  }
+  // Fail-closed: denied or timed out → skip the action, do not proceed.
+  return { proceed: false, skipped: true, resolution };
 }
