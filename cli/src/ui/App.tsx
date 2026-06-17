@@ -1,10 +1,12 @@
 import { Box, Text, useApp, useInput, useStdout } from 'ink';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { resolve as defaultResolve } from '../consent.ts';
 import type { DashboardModel } from '../operations/dashboard-model.ts';
 import type { RunHandle, RunOpts } from '../operations/run.ts';
 import { BacklogPane } from './BacklogPane.tsx';
 import { ClockInModal } from './ClockInModal.tsx';
 import { Footer } from './Footer.tsx';
+import { GateModal } from './GateModal.tsx';
 import { GateNotice } from './GateNotice.tsx';
 import { HelpOverlay } from './HelpOverlay.tsx';
 import { RunStreamPane } from './RunStreamPane.tsx';
@@ -39,6 +41,12 @@ export interface AppDeps {
   initialRunning?: boolean;
   /** Seed a journal path so the tail attaches without a real run (tests). */
   initialJournalPath?: string;
+  /** Resolve a pending consent (defaults to consent.resolve). Injected for tests. */
+  resolveConsent?: (
+    id: string,
+    approved: boolean,
+    token?: string,
+  ) => { ok: boolean; error?: string };
 }
 
 export interface AppProps {
@@ -57,6 +65,8 @@ export function App({ initial, rawModeSupported = true, deps = {} }: AppProps): 
   const startRun = deps.startRun;
   const makeTail = deps.makeTail ?? tailJournal;
   const pollIntervalMs = deps.pollIntervalMs ?? 1500;
+  const resolveConsent =
+    deps.resolveConsent ?? ((id, approved, token) => defaultResolve(id, approved, token));
 
   const [ui, setUi] = useState<AppState>(() => ({
     ...initialState(),
@@ -71,19 +81,35 @@ export function App({ initial, rawModeSupported = true, deps = {} }: AppProps): 
       : null,
   );
   const tailRef = useRef<JournalTail | null>(null);
+  // The last gate id we surfaced+closed. A just-resolved/dismissed consent must
+  // not immediately re-surface from a stale poll before the next tick drops it.
+  const closedGateRef = useRef<string | null>(null);
 
   // Pause polling while any blocking modal is open (background freeze).
   const pollEnabled = ui.modal == null || ui.modal === 'quit-confirm';
   const { data, error } = useShiftPoll(pollIntervalMs, pollEnabled, deps.read);
   const model = data ?? ui.model;
 
-  // Surface a pending gate from the polled model (Phase 1 surface-only).
+  // Surface a pending gate from the polled model. A pending consent (with an
+  // id+token) opens the type-to-confirm GateModal; a surface-only stop opens
+  // the GateNotice. Never re-open the same gate we just closed.
   useEffect(() => {
     const pg = model?.pendingGate;
-    if (pg && ui.modal !== 'gate') {
-      setUi((s) => ({ ...s, modal: 'gate', gate: pg }));
+    if (!pg) {
+      // Once the model clears the gate, forget the closed id (a NEW gate with
+      // the same id is impossible — ids are uuids — but this keeps the ref tidy).
+      if (closedGateRef.current != null) closedGateRef.current = null;
+      return;
     }
+    if (ui.modal === 'gate') return;
+    if (pg.id != null && pg.id === closedGateRef.current) return; // just handled
+    setUi((s) => ({ ...s, modal: 'gate', gate: pg }));
   }, [model?.pendingGate, ui.modal]);
+
+  const closeGate = useCallback((gateId?: string) => {
+    if (gateId != null) closedGateRef.current = gateId;
+    setUi((s) => ({ ...s, modal: null, gate: null }));
+  }, []);
 
   // Attach the journal tail when a run is live; tear it down deterministically.
   useEffect(() => {
@@ -190,13 +216,31 @@ export function App({ initial, rawModeSupported = true, deps = {} }: AppProps): 
     );
   }
   if (ui.modal === 'gate' && ui.gate) {
+    // A pending consent (id + token) → type-to-confirm GateModal (Phase 1b).
+    // A surface-only gate (no id) → the legacy GateNotice.
+    if (ui.gate.id != null && ui.gate.token != null) {
+      return (
+        <GateModal
+          pending={{
+            id: ui.gate.id,
+            command: ui.gate.command ?? ui.gate.segment,
+            category: ui.gate.category,
+            token: ui.gate.token,
+            bead: ui.gate.bead,
+            role: ui.gate.role,
+          }}
+          resolve={resolveConsent}
+          onClose={() => closeGate(ui.gate?.id)}
+        />
+      );
+    }
     return (
       <GateNotice
         segment={ui.gate.segment}
         category={ui.gate.category}
         bead={ui.gate.bead}
         roleName={ui.gate.role}
-        onDismiss={() => setUi((s) => ({ ...s, modal: null }))}
+        onDismiss={() => closeGate(ui.gate?.id)}
       />
     );
   }
