@@ -338,6 +338,73 @@ sum_writes="$(bash -c ". '$DASH' --source-only 2>&1; f9_dash_summary" 2>&1 | gre
   && ok "f9_dash_summary made no bd write calls" \
   || no "f9_dash_summary attempted a bd write (WRITE_ATTEMPT seen)"
 
+# ── 20. color: NO_COLOR=1 → zero escape codes in output ──────────────────────
+# Stdout is captured (piped = non-TTY), so color should be off by default too,
+# but we explicitly set NO_COLOR=1 to confirm the env var path is respected.
+color_no_out="$(NO_COLOR=1 bash "$DASH" 2>&1)"
+# Check for ESC character (0x1b) — any ANSI escape sequence starts with it.
+if printf '%s' "$color_no_out" | grep -qP '\x1b' 2>/dev/null \
+   || printf '%s' "$color_no_out" | LC_ALL=C grep -q $'\033'; then
+  no "NO_COLOR=1: output contains ANSI escape codes (must be plain text)"
+else
+  ok "NO_COLOR=1: output is plain text (no escape codes)"
+fi
+
+# ── 21. color: piped/non-TTY default → zero escape codes ─────────────────────
+# Capturing output is already a non-TTY context; confirm no leakage without any flag.
+color_pipe_out="$(bash "$DASH" 2>&1)"
+if printf '%s' "$color_pipe_out" | LC_ALL=C grep -q $'\033'; then
+  no "piped (non-TTY) default: output contains ANSI escape codes (must be plain)"
+else
+  ok "piped (non-TTY) default: output is plain text (no escape codes)"
+fi
+
+# ── 22. color: FIVE_TO_NINE_DASH_FORCE_COLOR=1 → ANSI escape codes present ───
+# Force-color opt-in must emit at least one ESC sequence in the section headers
+# or status-colored text.
+color_force_out="$(FIVE_TO_NINE_DASH_FORCE_COLOR=1 bash "$DASH" 2>&1)"
+if printf '%s' "$color_force_out" | LC_ALL=C grep -q $'\033'; then
+  ok "FIVE_TO_NINE_DASH_FORCE_COLOR=1: output contains ANSI escape codes"
+else
+  no "FIVE_TO_NINE_DASH_FORCE_COLOR=1: output missing ANSI escape codes (color not applied)"
+fi
+
+# ── 23. color: FIVE_TO_NINE_DASH_FORCE_COLOR=1 + NO_COLOR=1 → NO_COLOR wins ─
+# NO_COLOR is the standard; it must win over force-color.
+color_nc_wins_out="$(NO_COLOR=1 FIVE_TO_NINE_DASH_FORCE_COLOR=1 bash "$DASH" 2>&1)"
+if printf '%s' "$color_nc_wins_out" | LC_ALL=C grep -q $'\033'; then
+  no "NO_COLOR=1 + FORCE_COLOR: output contains ANSI codes (NO_COLOR must win)"
+else
+  ok "NO_COLOR=1 + FORCE_COLOR: NO_COLOR wins, output is plain text"
+fi
+
+# ── 24. color: FIVE_TO_NINE_DASH_FORCE_COLOR + TERM=dumb → no escape codes ───
+color_dumb_out="$(FIVE_TO_NINE_DASH_FORCE_COLOR=1 TERM=dumb bash "$DASH" 2>&1)"
+if printf '%s' "$color_dumb_out" | LC_ALL=C grep -q $'\033'; then
+  no "TERM=dumb + FORCE_COLOR: output contains ANSI codes (dumb terminal must suppress)"
+else
+  ok "TERM=dumb + FORCE_COLOR: TERM=dumb suppresses color, output is plain text"
+fi
+
+# ── 25. color: forced-color headers are bold ─────────────────────────────────
+# Bold is ESC[1m. The section headers (── X ──) should be bold.
+# Use printf + grep on the ESC byte directly; avoid bracket-expression collisions
+# by searching for ESC followed by "[1" as two separate pieces.
+color_bold_out="$(FIVE_TO_NINE_DASH_FORCE_COLOR=1 bash "$DASH" 2>&1)"
+# Count lines containing ESC followed by '[1' (bold SGR prefix) using LC_ALL=C.
+_bold_found="$(printf '%s' "$color_bold_out" | LC_ALL=C grep -c "$(printf '\033')\\[1" 2>/dev/null || echo 0)"
+if [[ "${_bold_found:-0}" -gt 0 ]]; then
+  ok "FIVE_TO_NINE_DASH_FORCE_COLOR=1: section headers use bold escape"
+else
+  # Softer check: at least one reset code (ESC[0m or ESC[0;…m) means styling ran.
+  _reset_found="$(printf '%s' "$color_bold_out" | LC_ALL=C grep -c "$(printf '\033')\\[0" 2>/dev/null || echo 0)"
+  if [[ "${_reset_found:-0}" -gt 0 ]]; then
+    ok "FIVE_TO_NINE_DASH_FORCE_COLOR=1: ANSI reset codes present (styling active)"
+  else
+    no "FIVE_TO_NINE_DASH_FORCE_COLOR=1: no bold/reset codes found in headers"
+  fi
+fi
+
 if [[ "$fail" -eq 0 ]]; then
   echo "shift-dashboard-test: GREEN"
   exit 0

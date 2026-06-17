@@ -25,11 +25,41 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$HERE/lib/common.sh"
 
 # ---------------------------------------------------------------------------
-# Internal: emit a section header.
+# Color helpers — NO_COLOR / non-TTY / TERM=dumb aware.
+#
+# _dash_color_on: returns 0 (true) when color is appropriate, 1 otherwise.
+#   Rules (in priority order):
+#     1. NO_COLOR set (any value)  → no color (spec: https://no-color.org)
+#     2. TERM=dumb                 → no color
+#     3. FIVE_TO_NINE_DASH_FORCE_COLOR=1 → color (test hook / explicit opt-in)
+#     4. stdout is a TTY [ -t 1 ]  → color
+#     5. otherwise                 → no color (piped/captured output)
+#
+# _dash_c <sgr>: emit ESC[<sgr>m when color is on, nothing otherwise.
+#   Common sgr codes: 0=reset  1=bold  2=dim  31=red  32=green
+# ---------------------------------------------------------------------------
+_dash_color_on() {
+  # NO_COLOR wins unconditionally (standard env var).
+  [[ -n "${NO_COLOR+x}" ]] && return 1
+  # TERM=dumb means the terminal cannot handle escape sequences.
+  [[ "${TERM:-}" == "dumb" ]] && return 1
+  # Explicit opt-in (test hook or script caller).
+  [[ "${FIVE_TO_NINE_DASH_FORCE_COLOR:-0}" == "1" ]] && return 0
+  # Real TTY check.
+  [[ -t 1 ]] && return 0
+  return 1
+}
+
+_dash_c() {
+  _dash_color_on && printf '\033[%sm' "$1" || true
+}
+
+# ---------------------------------------------------------------------------
+# Internal: emit a section header (bold when color is on).
 # Usage: _dash_header <label>
 # ---------------------------------------------------------------------------
 _dash_header() {
-  printf '\n── %s ──\n' "$*"
+  printf '\n%s── %s ──%s\n' "$(_dash_c 1)" "$*" "$(_dash_c 0)"
 }
 
 # ---------------------------------------------------------------------------
@@ -135,7 +165,8 @@ f9_dash_bead_lists() {
   _dash_header "IN-PROGRESS"
   _dash_print_beads "$ip_json"
 
-  _dash_header "BLOCKED"
+  # BLOCKED header: red label when color is on.
+  printf '\n%s── BLOCKED ──%s\n' "$(_dash_c 31)$(_dash_c 1)" "$(_dash_c 0)"
   _dash_print_beads "$blocked_json"
 }
 
@@ -180,7 +211,14 @@ f9_dash_status_panel() {
   fi
 
   # --- render ---
-  printf '  status:    %s\n' "${status:-unknown}"
+  local status_val="${status:-unknown}"
+  local status_colored
+  case "$status_val" in
+    active)   status_colored="$(_dash_c 32)${status_val}$(_dash_c 0)" ;;  # green
+    inactive) status_colored="$(_dash_c 2)${status_val}$(_dash_c 0)"  ;;  # dim
+    *)        status_colored="$status_val" ;;
+  esac
+  printf '  status:    %s\n' "$status_colored"
   printf '  goal:      %s\n' "${goal:-(none)}"
   printf '  branch:    %s\n' "${branch:-(none)}"
   printf '  iteration: %s / %s\n' "$iter_count" "$max_display"
