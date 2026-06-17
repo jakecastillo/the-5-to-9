@@ -87,19 +87,80 @@ f9_dash_bead_lists() {
 }
 
 # ---------------------------------------------------------------------------
-# Placeholder seams for sibling beads (not implemented yet).
+# f9_dash_status_panel — phu.3.1
+# Render the top-level shift status: active?, goal, branch, iteration, gate.
+# Strictly read-only (no bd/git writes). Exits 0 always.
+# State is read from:
+#   $(f9_state_dir)/shift.local.md   — YAML frontmatter (status/goal/branch/max_iterations)
+#   $(f9_state_dir)/iteration.count  — current iteration number (plain integer file)
 # ---------------------------------------------------------------------------
-# f9_dash_status_panel() { :; }   # phu.3.1 will implement this
-# f9_dash_loop()         { :; }   # phu.3.3 will implement this
+f9_dash_status_panel() {
+  _dash_header "SHIFT STATUS"
+
+  if ! f9_shift_active; then
+    printf '  no active shift\n'
+    return 0
+  fi
+
+  # --- read state fields (all read-only) ---
+  local status goal branch max_iter
+  status="$(f9_state_get status 2>/dev/null || printf 'unknown')"
+  goal="$(f9_state_get goal 2>/dev/null || printf '')"
+  branch="$(f9_state_get branch 2>/dev/null || printf '')"
+  max_iter="$(f9_state_get max_iterations 2>/dev/null || printf '')"
+
+  # --- iteration count from iteration.count file ---
+  local count_file iter_count
+  count_file="$(f9_state_dir)/iteration.count"
+  if [[ -f "$count_file" ]]; then
+    iter_count="$(cat "$count_file" 2>/dev/null | tr -d '[:space:]')"
+  else
+    iter_count="0"
+  fi
+
+  # --- format max_iterations: "uncapped" → ∞ ---
+  local max_display
+  if [[ -z "$max_iter" ]] || [[ "$max_iter" == "uncapped" ]]; then
+    max_display="∞"
+  else
+    max_display="$max_iter"
+  fi
+
+  # --- render ---
+  printf '  status:    %s\n' "${status:-unknown}"
+  printf '  goal:      %s\n' "${goal:-(none)}"
+  printf '  branch:    %s\n' "${branch:-(none)}"
+  printf '  iteration: %s / %s\n' "$iter_count" "$max_display"
+
+  # --- last gate result (cheaply available via last-gate-result file, else n/a) ---
+  local gate_file gate_result
+  gate_file="$(f9_state_dir)/last-gate-result"
+  if [[ -f "$gate_file" ]]; then
+    gate_result="$(cat "$gate_file" 2>/dev/null | tr -d '[:space:]')"
+    printf '  last gate: %s\n' "${gate_result:-n/a}"
+  fi
+
+  return 0
+}
 
 # ---------------------------------------------------------------------------
-# main — minimal entrypoint; calls the lists once and exits.
+# f9_dash_loop placeholder seam for phu.3.3 (not implemented yet).
+# ---------------------------------------------------------------------------
+# f9_dash_loop() { :; }   # phu.3.3 will implement this
+
+# ---------------------------------------------------------------------------
+# main — minimal entrypoint; calls the status panel + lists once and exits.
+# Supports --source-only to allow tests to source functions without running main.
 # phu.3.3 will replace this with the refresh loop.
 # ---------------------------------------------------------------------------
 main() {
   printf 'Shift Dashboard\n'
+  f9_dash_status_panel
   f9_dash_bead_lists
   printf '\n'
 }
 
-main "$@"
+# Allow callers to source this file without running main (e.g. tests).
+if [[ "${1:-}" != "--source-only" ]]; then
+  main "$@"
+fi

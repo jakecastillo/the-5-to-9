@@ -112,6 +112,70 @@ write_hits="$(bash "$DASH" 2>&1 | grep -c 'WRITE_ATTEMPT' || true)"
   && ok "renderer made no bd write calls" \
   || no "renderer attempted a bd write (WRITE_ATTEMPT seen in output)"
 
+# ── 8. status panel: no active shift → exits 0 + "no active shift" ───────────
+# Redirect state to a TMP dir that has no shift.local.md.
+mkdir -p "$TMP/noshift"
+no_shift_out="$(CLAUDE_PROJECT_DIR="$TMP/noshift" bash -c ". '$ROOT/scripts/shift-dashboard.sh' --source-only 2>/dev/null; f9_dash_status_panel" 2>&1 || true)"
+# The status panel function must exit 0 and print a "no active shift" message.
+no_shift_rc=0
+CLAUDE_PROJECT_DIR="$TMP/noshift" bash -c ". '$ROOT/scripts/shift-dashboard.sh' --source-only 2>/dev/null; f9_dash_status_panel" >/dev/null 2>&1 || no_shift_rc=$?
+[[ "$no_shift_rc" -eq 0 ]] \
+  && ok "status panel exits 0 when no active shift" \
+  || no "status panel exited $no_shift_rc when no active shift (must be 0)"
+printf '%s' "$no_shift_out" | grep -qi 'no active shift\|no shift' \
+  && ok "status panel prints 'no active shift' message when no shift" \
+  || no "status panel missing 'no active shift' message (got: $no_shift_out)"
+
+# ── 9. status panel: active shift → renders goal, branch, iteration ──────────
+mkdir -p "$TMP/activeshift/.claude/five-to-nine"
+cat >"$TMP/activeshift/.claude/five-to-nine/shift.local.md" <<'STATEEOF'
+---
+goal: "Test goal for dashboard"
+branch: feat/test-branch
+started: 2026-06-16T00:00:00Z
+engine: in-session
+status: active
+max_iterations: 10
+---
+Test goal for dashboard
+STATEEOF
+printf '3\n' >"$TMP/activeshift/.claude/five-to-nine/iteration.count"
+
+active_out="$(CLAUDE_PROJECT_DIR="$TMP/activeshift" bash -c ". '$ROOT/scripts/shift-dashboard.sh' --source-only 2>/dev/null; f9_dash_status_panel" 2>&1)"
+
+printf '%s' "$active_out" | grep -qi 'Test goal for dashboard' \
+  && ok "status panel renders the shift goal" \
+  || no "status panel missing goal (got: $active_out)"
+
+printf '%s' "$active_out" | grep -q 'feat/test-branch' \
+  && ok "status panel renders the branch" \
+  || no "status panel missing branch (got: $active_out)"
+
+printf '%s' "$active_out" | grep -qE '3.*/.*10|3[[:space:]]*/[[:space:]]*10' \
+  && ok "status panel renders iteration count (3/10)" \
+  || no "status panel missing iteration count 3/10 (got: $active_out)"
+
+# ── 10. status panel: uncapped max_iterations → shows ∞ ──────────────────────
+mkdir -p "$TMP/uncapped/.claude/five-to-nine"
+cat >"$TMP/uncapped/.claude/five-to-nine/shift.local.md" <<'UNCAPEOF'
+---
+goal: "Uncapped shift goal"
+branch: feat/uncapped
+started: 2026-06-16T00:00:00Z
+engine: in-session
+status: active
+max_iterations: uncapped
+---
+Uncapped shift goal
+UNCAPEOF
+printf '7\n' >"$TMP/uncapped/.claude/five-to-nine/iteration.count"
+
+uncap_out="$(CLAUDE_PROJECT_DIR="$TMP/uncapped" bash -c ". '$ROOT/scripts/shift-dashboard.sh' --source-only 2>/dev/null; f9_dash_status_panel" 2>&1)"
+
+printf '%s' "$uncap_out" | grep -q '∞' \
+  && ok "status panel shows ∞ for uncapped max_iterations" \
+  || no "status panel missing ∞ for uncapped (got: $uncap_out)"
+
 if [[ "$fail" -eq 0 ]]; then
   echo "shift-dashboard-test: GREEN"
   exit 0
