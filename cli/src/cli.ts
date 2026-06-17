@@ -1,6 +1,6 @@
 import { Command, CommanderError } from 'commander';
 import { type BeadsRead, makeBeadsRead } from './beads-read.ts';
-import { readConfig, setConfig } from './config-file.ts';
+import { effectiveBackend, readConfig, setConfig } from './config-file.ts';
 import { clockIn } from './operations/clock-in.ts';
 import { clockOut } from './operations/clock-out.ts';
 import { getDashboardModel } from './operations/dashboard-model.ts';
@@ -127,10 +127,12 @@ function buildProgram(io: Io, deps: CliDeps): Command {
     .option('-K, --concurrency <n>', 'worker pool size')
     .action(async (opts: { maxIterations?: string; backend?: string; concurrency?: string }) => {
       const s = await status({ beads, stateDir });
+      const backend =
+        (opts.backend as 'claude' | 'codex' | 'api' | undefined) ?? effectiveBackend();
       const handle = await startRun(
         {
           maxIterations: opts.maxIterations ? Number(opts.maxIterations) : undefined,
-          backend: opts.backend as 'claude' | 'codex' | 'api' | undefined,
+          backend,
           concurrency: opts.concurrency ? Number(opts.concurrency) : undefined,
         },
         { stateDir, branch: s.state.branch || 'current' },
@@ -160,7 +162,9 @@ function buildProgram(io: Io, deps: CliDeps): Command {
     .description('preflight node / bd / backend')
     .option('--backend <name>', 'claude | codex | api')
     .action(async (opts: { backend?: string }) => {
-      const report = await doctor({ backend: opts.backend as 'claude' | 'codex' | 'api' });
+      const backend =
+        (opts.backend as 'claude' | 'codex' | 'api' | undefined) ?? effectiveBackend();
+      const report = await doctor({ backend });
       for (const c of report.checks) io.out(`${c.ok ? 'ok  ' : 'FAIL'} ${c.name}: ${c.detail}\n`);
       io.out(report.ok ? 'doctor: ok\n' : 'doctor: problems found\n');
     });
