@@ -195,6 +195,93 @@ test('worktree leak: a throwing worker still removes every created worktree (no 
   });
 });
 
+test('P1-C: worktrees.add throwing for one bead removes its worktree (no orphan) while an independent bead closes', async () => {
+  await withTick(async (dir) => {
+    const addCalls: string[] = [];
+    const removeCalls: string[] = [];
+    const fn: ExecFn = async (cmd, args) => {
+      const key = [cmd, ...args].join(' ');
+      if (key.startsWith('bd ready'))
+        return { stdout: JSON.stringify(readyAB), stderr: '', code: 0 };
+      if (key.startsWith('git worktree add')) {
+        addCalls.push(key);
+        // Bead 'b' partially creates its worktree on disk, then `git worktree add` FAILS.
+        if (key.includes('wt-b')) throw new Error('git worktree add exploded for b');
+        return { stdout: '', stderr: '', code: 0 };
+      }
+      if (key.startsWith('git worktree remove')) {
+        removeCalls.push(key);
+        return { stdout: '', stderr: '', code: 0 };
+      }
+      if (key.startsWith('git merge-tree')) return { stdout: 'treeoid', stderr: '', code: 0 };
+      return { stdout: '{}', stderr: '', code: 0 };
+    };
+    // runParallelTick must NOT propagate the throw; it settles 'b' as a failure.
+    const r = await runParallelTick({
+      beads: new Beads(fn, new WriteQueue()),
+      worktrees: new Worktrees(fn, dir),
+      journal: new Journal(join(dir, 'journal.jsonl')),
+      log: new RunLog(join(dir, 'events.jsonl')),
+      ledger: new BudgetLedger(10, 0),
+      dealer: new MockAdapter({ a: out('a', 'dealer'), b: out('b', 'dealer') }),
+      auditor: new MockAdapter({ a: out('a', 'auditor'), b: out('b', 'auditor') }),
+      mechanicalGate: async () => ({ green: true }),
+      k: 2,
+      baseBranch: 'main',
+    });
+    // The independent benign bead 'a' still completes.
+    assert.deepEqual(r.closedIds, ['a']);
+    // INVARIANT: 'b''s partially-created worktree must be cleaned up — no orphan.
+    assert.ok(
+      removeCalls.some((c) => c.includes('wt-b')),
+      `expected wt-b to be removed (no orphan); removes: ${JSON.stringify(removeCalls)}`,
+    );
+  });
+});
+
+test('P1-C: resume after a phase-1 throw does NOT re-claim a bead already claimed (no double-claim)', async () => {
+  await withTick(async (dir) => {
+    const path = join(dir, 'journal.jsonl');
+    // Simulate the crash window: 'b' was already claimed, then phase-1 threw before close.
+    const pre = new Journal(path);
+    await pre.append({ type: 'claim', beadId: 'b' });
+
+    const claimCalls: string[] = [];
+    const fn: ExecFn = async (cmd, args) => {
+      const key = [cmd, ...args].join(' ');
+      if (key.startsWith('bd ready'))
+        return { stdout: JSON.stringify(readyAB), stderr: '', code: 0 };
+      // Beads.claim issues `bd update <id> --claim`.
+      if (cmd === 'bd' && args[0] === 'update' && args.includes('--claim')) {
+        claimCalls.push(key);
+        return { stdout: '{}', stderr: '', code: 0 };
+      }
+      if (key.startsWith('git worktree add')) return { stdout: '', stderr: '', code: 0 };
+      if (key.startsWith('git worktree remove')) return { stdout: '', stderr: '', code: 0 };
+      if (key.startsWith('git merge-tree')) return { stdout: 'treeoid', stderr: '', code: 0 };
+      return { stdout: '{}', stderr: '', code: 0 };
+    };
+    await runParallelTick({
+      beads: new Beads(fn, new WriteQueue()),
+      worktrees: new Worktrees(fn, dir),
+      journal: new Journal(path, await Journal.replay(path)),
+      log: new RunLog(join(dir, 'events.jsonl')),
+      ledger: new BudgetLedger(10, 0),
+      dealer: new MockAdapter({ a: out('a', 'dealer'), b: out('b', 'dealer') }),
+      auditor: new MockAdapter({ a: out('a', 'auditor'), b: out('b', 'auditor') }),
+      mechanicalGate: async () => ({ green: true }),
+      k: 2,
+      baseBranch: 'main',
+    });
+    // INVARIANT: 'b' is already claimed in the journal → it must NOT be re-claimed on resume.
+    assert.equal(
+      claimCalls.filter((c) => c === 'bd update b --claim').length,
+      0,
+      `bead 'b' must not be re-claimed on resume; claims: ${JSON.stringify(claimCalls)}`,
+    );
+  });
+});
+
 test('WAL ordering (parallel): journal merge entry is written BEFORE worktrees.merge() executes', async () => {
   await withTick(async (dir) => {
     const eventOrder: string[] = [];
