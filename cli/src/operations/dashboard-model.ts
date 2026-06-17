@@ -2,12 +2,31 @@ import { type BeadLite, makeBeadsRead } from '../beads-read.ts';
 import { stateDir as defaultStateDir } from '../paths.ts';
 import { type OpDeps, type StatusView, status } from './status.ts';
 
+/** A surfaced irreversible-gate stop (Phase 1 — surface only, no approve). */
+export interface PendingGate {
+  /** The flagged command/segment. */
+  segment: string;
+  /** The irreversible category (deploy/publish/force-push/delete-remote/rotate-secrets). */
+  category: string;
+  /** The bead the flagged command was working on, if known. */
+  bead?: string;
+  /** The role that triggered it, if known. */
+  role?: string;
+}
+
 /** The full dashboard model: status + the three bead lists + progress. */
 export interface DashboardModel extends StatusView {
   ready: BeadLite[];
   inProgress: BeadLite[];
   blocked: BeadLite[];
   progress: { closed: number; total: number; pct: number };
+  /**
+   * A surfaced gate stop, when the driver's fail-closed gate halted on an
+   * irreversible segment. Phase 1 only surfaces it (the TUI raises a blocking
+   * notice); the facade does not yet populate it (Phase 1b wires the driver
+   * pending-consent event). Optional + additive so this never breaks callers.
+   */
+  pendingGate?: PendingGate;
 }
 
 /**
