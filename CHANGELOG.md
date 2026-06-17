@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+A usage & workflow refinement pass: the docs stop lying about the version, the gate keeps
+them honest, and the two hands-off entrypoints answer `--help` like they should.
+
+### Added
+
+- **Version-consistency gate** (`tests/check-version-consistency.sh` + `version-consistency-test.sh`,
+  wired into `validate-plugin.sh`) — asserts every version-bearing source (both plugin
+  manifests, the marketplace + `.agents` codex mirror, `driver/package.json`, `CITATION.cff`,
+  and the README badge) agrees on one version. A release bump that misses a file now fails
+  the gate loudly instead of drifting silently.
+- **`clock-in-dispatch.sh --help`** — the driver dispatch entrypoint now prints its own usage
+  (routing, `--driver`, `--backend`) and exits without invoking either engine, instead of
+  silently forwarding `--help` to the bash loop.
+
+### Fixed
+
+- **Stale version references** — the `.codex-plugin` / `.cursor-plugin` manifests, the README
+  badge, and `CITATION.cff` were left at `0.1.0` behind the `0.2.0` release; all unified on the
+  shipped version. Version-decoration prose in `CONTRIBUTING.md` / `SUPPORT.md` / `GOVERNANCE.md`
+  reworded to drop the hardcoded number so it can't rot again.
+- **`night-shift.sh --help` leak** — the help extractor scraped every `#` comment in the file,
+  spilling two `# shellcheck source=` directives into user-facing help. Now extracts only the
+  leading header block.
+
 ## [0.2.0] - 2026-06-17
 
 The night crew grew a dashboard, a deterministic driver, and a continuous loop — and a
