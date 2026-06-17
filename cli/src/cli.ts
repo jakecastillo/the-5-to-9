@@ -8,6 +8,7 @@ import { doctor } from './operations/doctor.ts';
 import { startRun } from './operations/run.ts';
 import { status } from './operations/status.ts';
 import { stateDir as defaultStateDir } from './paths.ts';
+import { launchTui as defaultLaunchTui } from './ui/launch.ts';
 
 /** Output sink — defaults to process stdout/stderr. */
 export interface Io {
@@ -20,6 +21,8 @@ export interface CliDeps {
   beads?: BeadsRead;
   stateDir?: string;
   cwd?: string;
+  /** Launch the interactive TUI (injectable so tests don't render Ink). */
+  launchTui?: () => Promise<void>;
 }
 
 const VERSION = '0.2.0';
@@ -104,11 +107,16 @@ function buildProgram(io: Io, deps: CliDeps): Command {
       io.out(renderStatus(await status({ beads, stateDir })));
     });
 
+  const launchTui = deps.launchTui ?? defaultLaunchTui;
   program
     .command('dashboard')
-    .description('render a one-shot dashboard view (interactive TUI lands in Milestone B)')
-    .option('--watch', 'live-refresh (Milestone B)')
-    .action(async () => {
+    .description('one-shot dashboard view; --watch launches the interactive TUI')
+    .option('--watch', 'launch the live interactive TUI')
+    .action(async (opts: { watch?: boolean }) => {
+      if (opts.watch) {
+        await launchTui();
+        return;
+      }
       const m = await getDashboardModel({ beads, stateDir });
       io.out(renderStatus(m));
       io.out(
@@ -184,9 +192,12 @@ export async function runCli(
 ): Promise<number> {
   const program = buildProgram(io, deps);
 
-  // Bare invocation: print usage (Milestone A has no TUI).
+  // Bare invocation: launch the interactive TUI. The launcher guards raw mode
+  // and degrades to a plain StaticStatusDump off-TTY (it never crashes on a
+  // pipe/CI and never shows a modal there).
   if (argv.length === 0) {
-    io.out(program.helpInformation());
+    const launchTui = deps.launchTui ?? defaultLaunchTui;
+    await launchTui();
     return 0;
   }
 

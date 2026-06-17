@@ -1,7 +1,7 @@
 import { existsSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { expect, test } from 'vitest';
+import { expect, test, vi } from 'vitest';
 import type { BeadsRead } from './beads-read.ts';
 import { type CliDeps, runCli } from './cli.ts';
 
@@ -75,10 +75,42 @@ test('unknown subcommand → nonzero + usage to stderr', async () => {
   expect(c.err().length).toBeGreaterThan(0);
 });
 
-test('bare invocation prints usage (TUI is Milestone B)', async () => {
+test('bare invocation launches the TUI (via the injected launcher)', async () => {
   const repo = mkdtempSync(join(tmpdir(), 'f9-cli-'));
   const c = capture();
-  const code = await runCli([], c.io, deps(repo));
+  const launchTui = vi.fn(async () => {});
+  const code = await runCli([], c.io, { ...deps(repo), launchTui });
   expect(code).toBe(0);
-  expect(c.out()).toContain('clock-in');
+  expect(launchTui).toHaveBeenCalledTimes(1);
+});
+
+test('bare invocation in a non-TTY uses the dump path (launcher decides), returns 0', async () => {
+  // The launcher itself guards raw mode; from runCli's view it is called once
+  // and returns 0. (The StaticStatusDump fallback lives inside launchTui.)
+  const repo = mkdtempSync(join(tmpdir(), 'f9-cli-'));
+  const c = capture();
+  const launchTui = vi.fn(async () => {});
+  const code = await runCli([], c.io, { ...deps(repo), launchTui });
+  expect(code).toBe(0);
+  expect(launchTui).toHaveBeenCalled();
+});
+
+test('dashboard --watch resolves to the TUI launcher', async () => {
+  const repo = mkdtempSync(join(tmpdir(), 'f9-cli-'));
+  const c = capture();
+  const launchTui = vi.fn(async () => {});
+  const code = await runCli(['dashboard', '--watch'], c.io, { ...deps(repo), launchTui });
+  expect(code).toBe(0);
+  expect(launchTui).toHaveBeenCalledTimes(1);
+});
+
+test('dashboard without --watch stays a one-shot text render (no TUI)', async () => {
+  const repo = mkdtempSync(join(tmpdir(), 'f9-cli-'));
+  await runCli(['clock-in', 'ship X', '--no-branch'], capture().io, deps(repo));
+  const c = capture();
+  const launchTui = vi.fn(async () => {});
+  const code = await runCli(['dashboard'], c.io, { ...deps(repo), launchTui });
+  expect(code).toBe(0);
+  expect(launchTui).not.toHaveBeenCalled();
+  expect(c.out()).toMatch(/progress|ready/i);
 });
