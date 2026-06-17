@@ -223,12 +223,21 @@ f9_dash_status_panel() {
   printf '  branch:    %s\n' "${branch:-(none)}"
   printf '  iteration: %s / %s\n' "$iter_count" "$max_display"
 
-  # --- last gate result (cheaply available via last-gate-result file, else n/a) ---
-  local gate_file gate_result
-  gate_file="$(f9_state_dir)/last-gate-result"
+  # --- last gate result (read-only: last-gate.txt written by validate-plugin.sh) ---
+  # Format in file: "GREEN|RED <group-count> <UTC-ISO-timestamp>"
+  # Rendered as:    "gate: GREEN (18 groups) — 2026-06-16T12:34:56Z"  or  "gate: n/a"
+  local gate_file gate_color gate_n gate_ts
+  gate_file="$(f9_state_dir)/last-gate.txt"
   if [[ -f "$gate_file" ]]; then
-    gate_result="$(cat "$gate_file" 2>/dev/null | tr -d '[:space:]')"
-    printf '  last gate: %s\n' "${gate_result:-n/a}"
+    # Read the first line; tolerate trailing whitespace / newlines.
+    IFS= read -r gate_line < "$gate_file" 2>/dev/null || gate_line=""
+    gate_color="${gate_line%% *}"           # first word: GREEN or RED
+    gate_rest="${gate_line#* }"             # remainder: "<n> <ts>"
+    gate_n="${gate_rest%% *}"              # second word: group count
+    gate_ts="${gate_rest#* }"              # third word: timestamp
+    printf '  gate: %s (%s groups) — %s\n' "$gate_color" "$gate_n" "$gate_ts"
+  else
+    printf '  gate: n/a\n'
   fi
 
   return 0

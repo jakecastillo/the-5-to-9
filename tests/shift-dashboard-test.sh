@@ -405,6 +405,57 @@ else
   fi
 fi
 
+# ── 26. validate-plugin.sh writes last-gate.txt marker (GREEN + group count) ──
+# Skip this test when called FROM validate-plugin.sh (which sets F9_SKIP_VALIDATE_CALL=1)
+# to avoid infinite recursion (validate → dash-test → validate → ...).
+if [[ -z "${F9_SKIP_VALIDATE_CALL:-}" ]]; then
+  gate_marker_dir="$TMP/gate_marker_run/.claude/five-to-nine"
+  mkdir -p "$gate_marker_dir"
+  gate_marker_rc=0
+  CLAUDE_PROJECT_DIR="$TMP/gate_marker_run" bash "$ROOT/tests/validate-plugin.sh" >/dev/null 2>&1 || gate_marker_rc=$?
+  [[ "$gate_marker_rc" -eq 0 ]] \
+    && ok "validate-plugin.sh still exits 0 after marker write" \
+    || no "validate-plugin.sh exited $gate_marker_rc (must still be 0)"
+  marker_file="$gate_marker_dir/last-gate.txt"
+  [[ -f "$marker_file" ]] \
+    && ok "validate-plugin.sh wrote last-gate.txt marker" \
+    || no "validate-plugin.sh did NOT write last-gate.txt"
+  if [[ -f "$marker_file" ]]; then
+    IFS= read -r marker_line < "$marker_file"
+    printf '%s' "$marker_line" | grep -qE '^GREEN ' \
+      && ok "marker starts with GREEN" \
+      || no "marker does not start with GREEN (got: $marker_line)"
+    printf '%s' "$marker_line" | grep -qE '[0-9]+' \
+      && ok "marker contains a group count integer" \
+      || no "marker missing group count integer (got: $marker_line)"
+  fi
+fi
+
+# ── 27. status panel: gate line present when last-gate.txt marker exists ──────
+# Craft a marker in the TMP active-shift state dir and confirm the panel renders it.
+gate_ts="2026-06-16T12:34:56Z"
+printf 'GREEN 18 %s\n' "$gate_ts" >"$TMP/activeshift/.claude/five-to-nine/last-gate.txt"
+
+gate_out="$(CLAUDE_PROJECT_DIR="$TMP/activeshift" bash -c ". '$ROOT/scripts/shift-dashboard.sh' --source-only 2>/dev/null; f9_dash_status_panel" 2>&1)"
+
+printf '%s' "$gate_out" | grep -qiE 'gate.*GREEN|GREEN.*gate' \
+  && ok "status panel renders gate: GREEN when marker present" \
+  || no "status panel missing gate GREEN line (got: $gate_out)"
+
+printf '%s' "$gate_out" | grep -qE '18' \
+  && ok "status panel includes group count (18) in gate line" \
+  || no "status panel missing group count 18 in gate line (got: $gate_out)"
+
+# ── 28. status panel: gate: n/a when last-gate.txt absent ────────────────────
+# Remove the marker; panel must show 'gate: n/a' (or omit gracefully — we test for n/a).
+rm -f "$TMP/activeshift/.claude/five-to-nine/last-gate.txt"
+
+no_gate_out="$(CLAUDE_PROJECT_DIR="$TMP/activeshift" bash -c ". '$ROOT/scripts/shift-dashboard.sh' --source-only 2>/dev/null; f9_dash_status_panel" 2>&1)"
+
+printf '%s' "$no_gate_out" | grep -qi 'gate.*n/a\|n/a.*gate' \
+  && ok "status panel shows 'gate: n/a' when marker absent" \
+  || no "status panel missing 'gate: n/a' when marker absent (got: $no_gate_out)"
+
 if [[ "$fail" -eq 0 ]]; then
   echo "shift-dashboard-test: GREEN"
   exit 0

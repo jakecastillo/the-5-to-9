@@ -279,7 +279,7 @@ fi
 
 # ── 5h. shift dashboard bead-list renderer ───────────────────────────────────
 head_ "shift dashboard bead lists (phu.3.2)"
-sd_out="$(bash "$ROOT/tests/shift-dashboard-test.sh" 2>&1)"; sd_rc=$?
+sd_out="$(F9_SKIP_VALIDATE_CALL=1 bash "$ROOT/tests/shift-dashboard-test.sh" 2>&1)"; sd_rc=$?
 if [[ "$sd_rc" -eq 0 ]]; then
   ok "$(printf '%s' "$sd_out" | tail -n1)"
 else
@@ -318,8 +318,23 @@ fi
 printf '\n══════════════════════════════════════════════════════════════\n'
 if [[ "$fail" -eq 0 ]]; then
   printf '🌙 The 5 to 9 — GREEN. %d check group(s) passed. Clock out clean.\n' "$pass_n"
-  exit 0
+  _gate_status="GREEN"
 else
   printf '⛔ The 5 to 9 — RED. %d problem(s). No green, no close.\n' "$fail"
+  _gate_status="RED"
+fi
+
+# ── write last-gate.txt marker (best-effort; never changes exit code) ─────────
+# Format: "GREEN|RED <group-count> <UTC-ISO-timestamp>"
+# State dir: $CLAUDE_PROJECT_DIR/.claude/five-to-nine/ (or $ROOT/.claude/five-to-nine/)
+_gate_state_dir="${CLAUDE_PROJECT_DIR:-$ROOT}/.claude/five-to-nine"
+_gate_ts="$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || printf 'unknown')"
+if mkdir -p "$_gate_state_dir" 2>/dev/null; then
+  printf '%s %s %s\n' "$_gate_status" "$pass_n" "$_gate_ts" >"$_gate_state_dir/last-gate.txt" 2>/dev/null || true
+fi
+
+if [[ "$_gate_status" == "GREEN" ]]; then
+  exit 0
+else
   exit 1
 fi
