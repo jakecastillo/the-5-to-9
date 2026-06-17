@@ -8,16 +8,32 @@ import { dirname } from 'node:path';
  */
 export const MAX_STREAM_LINES = 1000;
 
-/** A fixed-capacity FIFO buffer: pushing past `max` drops the oldest item. */
+/**
+ * A fixed-capacity FIFO ring: pushing past `max` overwrites the oldest slot in
+ * place. `push` is O(1) — no array growth and no front-splice — so memory stays
+ * O(max) and writes never degrade as the journal grows. `items()` materializes
+ * the retained slots oldest→newest.
+ */
 export class RingBuffer<T> {
-  private buf: T[] = [];
-  constructor(private max: number) {}
+  private buf: (T | undefined)[];
+  private head = 0; // index of the oldest retained item (meaningful once full)
+  private len = 0; // number of retained items (≤ max)
+  private readonly max: number;
+
+  constructor(max: number) {
+    this.max = Math.max(1, max);
+    this.buf = new Array<T | undefined>(this.max);
+  }
 
   push(x: T): void {
-    this.buf.push(x);
-    if (this.buf.length > this.max) {
-      // Drop from the front so memory stays O(max), never O(total).
-      this.buf.splice(0, this.buf.length - this.max);
+    if (this.len < this.max) {
+      // Not yet full: append at the logical tail.
+      this.buf[(this.head + this.len) % this.max] = x;
+      this.len++;
+    } else {
+      // Full: overwrite the oldest slot, then advance head. O(1), no splice.
+      this.buf[this.head] = x;
+      this.head = (this.head + 1) % this.max;
     }
   }
 
@@ -26,11 +42,15 @@ export class RingBuffer<T> {
   }
 
   items(): T[] {
-    return this.buf.slice();
+    const out = new Array<T>(this.len);
+    for (let i = 0; i < this.len; i++) {
+      out[i] = this.buf[(this.head + i) % this.max] as T;
+    }
+    return out;
   }
 
   get length(): number {
-    return this.buf.length;
+    return this.len;
   }
 }
 
@@ -47,6 +67,14 @@ export interface TailOpts {
   throttleMs?: number;
   /** Ring-buffer cap (default MAX_STREAM_LINES). */
   max?: number;
+  /**
+   * Surfaced when a stat/read FAILS after at least one successful read (e.g. the
+   * journal was deleted out from under the tail). A missing file BEFORE the
+   * first successful read is normal startup and is NOT reported. Fired at most
+   * once per failure transition so the consumer can show a status line instead
+   * of the output silently freezing.
+   */
+  onError?: (err: Error) => void;
 }
 
 /**
@@ -71,6 +99,7 @@ export function tailJournal(
 ): JournalTail {
   const throttleMs = opts.throttleMs ?? 200;
   const max = opts.max ?? MAX_STREAM_LINES;
+  const onError = opts.onError;
   const ring = new RingBuffer<string>(max);
 
   let offset = 0;
@@ -80,40 +109,76 @@ export function tailJournal(
   let pollTimer: ReturnType<typeof setInterval> | null = null;
   let watcher: FSWatcher | null = null;
   let stopped = false;
+  let hasReadOnce = false; // a read succeeded → later failures are real errors
+  let errored = false; // de-dupe: surface a given failure transition once
+
+  /** Cancel an armed flush and drop any not-yet-delivered lines. */
+  function dropPending(): void {
+    if (flushTimer != null) {
+      clearTimeout(flushTimer);
+      flushTimer = null;
+    }
+    pending = [];
+  }
+
+  /** Surface a post-first-read failure once (deletion, unreadable file). */
+  function surfaceError(err: unknown): void {
+    if (!hasReadOnce || errored || stopped) return;
+    errored = true;
+    onError?.(err instanceof Error ? err : new Error(String(err)));
+  }
 
   function readNew(): void {
     if (stopped) return;
     let size: number;
     try {
       size = statSync(path).size;
-    } catch {
-      return; // file vanished — nothing to read
+    } catch (err) {
+      // A not-yet-created journal before the first successful read is normal
+      // startup. A failure AFTER a good read means the file vanished/became
+      // unreadable — surface it instead of silently freezing the output.
+      surfaceError(err);
+      return;
     }
     if (size < offset) {
-      // Truncated/rotated: restart from the top.
+      // Truncated/rotated: restart from the top. Any lines still pending from
+      // before the truncation are now stale — drop them and cancel the flush so
+      // the post-truncation read starts clean.
       offset = 0;
       leftover = '';
+      dropPending();
     }
     if (size === offset) return;
 
-    const fd = openSync(path, 'r');
+    let read: number;
+    let chunk: string;
     try {
-      const len = size - offset;
-      const buf = Buffer.allocUnsafe(len);
-      const read = readSync(fd, buf, 0, len, offset);
-      offset += read;
-      const chunk = leftover + buf.toString('utf8', 0, read);
-      const parts = chunk.split('\n');
-      // The last element is an incomplete line (no trailing newline yet).
-      leftover = parts.pop() ?? '';
-      if (parts.length > 0) pending.push(...parts);
-    } finally {
+      const fd = openSync(path, 'r');
       try {
-        closeSync(fd);
-      } catch {
-        // best-effort
+        const len = size - offset;
+        const buf = Buffer.allocUnsafe(len);
+        read = readSync(fd, buf, 0, len, offset);
+        chunk = leftover + buf.toString('utf8', 0, read);
+      } finally {
+        try {
+          closeSync(fd);
+        } catch {
+          // best-effort
+        }
       }
+    } catch (err) {
+      // Stat saw a size but the open/read failed (raced deletion, perms): same
+      // surface-don't-freeze contract once a read has already succeeded.
+      surfaceError(err);
+      return;
     }
+
+    offset += read;
+    hasReadOnce = true;
+    const parts = chunk.split('\n');
+    // The last element is an incomplete line (no trailing newline yet).
+    leftover = parts.pop() ?? '';
+    if (parts.length > 0) pending.push(...parts);
 
     scheduleFlush();
   }
