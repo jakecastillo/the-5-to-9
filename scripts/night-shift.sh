@@ -32,7 +32,7 @@ while [[ $# -gt 0 ]]; do
     --goal|-g)           goal="${2:-}"; shift 2 2>/dev/null || shift;;
     --goal=*)            goal="${1#*=}"; shift;;
     --dry-run)           dry_run=1; shift;;
-    -h|--help)           grep -E '^#( |$)' "$F9_HERE/night-shift.sh" | sed 's/^# \{0,1\}//' >&2; exit 0;;
+    -h|--help)           awk 'NR>1 && /^#( |$)/ {sub(/^# ?/, ""); print; next} NR>1 {exit}' "$F9_HERE/night-shift.sh" >&2; exit 0;;
     *)                   f9_warn "ignoring unknown arg: $1"; shift;;
   esac
 done

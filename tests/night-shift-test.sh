@@ -209,6 +209,22 @@ printf '%s' "$twoarg_out" | grep -q 'iteration(s)' \
   && ok "--max-iterations N (two-arg form) still works after fix" \
   || no "--max-iterations N (two-arg form) broken after shift fix"
 
+# --help must print the usage doc only — never leak internal `# shellcheck source=`
+# directive comments (the extractor scrapes header comments).
+help_out="$(bash "$ROOT/scripts/night-shift.sh" --help 2>&1 || true)"
+if printf '%s\n' "$help_out" | grep -q '^shellcheck source='; then
+  no "--help leaks 'shellcheck source=' directive lines"
+else
+  ok "--help output is free of 'shellcheck source=' directive leakage"
+fi
+# ...and the real help content must survive (regression guard).
+if printf '%s\n' "$help_out" | grep -q 'usage: night-shift.sh' \
+   && printf '%s\n' "$help_out" | grep -q -- '--max-iterations'; then
+  ok "--help still prints the real usage doc"
+else
+  no "--help lost its usage content"
+fi
+
 if [[ "$fail" -eq 0 ]]; then
   echo "night-shift-test: GREEN"
   exit 0
