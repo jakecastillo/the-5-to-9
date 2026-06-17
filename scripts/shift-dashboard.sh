@@ -63,6 +63,50 @@ _dash_print_beads() {
 }
 
 # ---------------------------------------------------------------------------
+# Internal: extract the first integer from a string (bd count output).
+# ---------------------------------------------------------------------------
+_dash_first_int() { grep -oE '[0-9]+' | head -n1; }
+
+# ---------------------------------------------------------------------------
+# f9_dash_summary — phu.3.4
+# Render a one-line at-a-glance summary header:
+#   closed / ready / in_progress / blocked counts + progress (closed/total).
+# Strictly read-only — no bd/git writes. Exits 0 always.
+# Graceful fallback when bd is absent.
+# ---------------------------------------------------------------------------
+f9_dash_summary() {
+  if ! f9_have_beads; then
+    printf '  bd not available — install beads (bd) for summary counts\n'
+    return 0
+  fi
+
+  # Fetch counts via bd count --status <X>; default 0 on failure.
+  local closed ready in_progress blocked total pct
+  closed="$(bd count --status closed 2>/dev/null | _dash_first_int)"
+  closed="${closed:-0}"
+  ready="$(bd count --status ready 2>/dev/null | _dash_first_int)"
+  ready="${ready:-0}"
+  in_progress="$(bd count --status in_progress 2>/dev/null | _dash_first_int)"
+  in_progress="${in_progress:-0}"
+  blocked="$(bd count --status blocked 2>/dev/null | _dash_first_int)"
+  blocked="${blocked:-0}"
+
+  total=$(( closed + ready + in_progress + blocked ))
+
+  # Progress: "closed/total (XX%)" — guard against divide-by-zero.
+  if [[ "$total" -gt 0 ]]; then
+    pct=$(( closed * 100 / total ))
+    printf '  closed:%s  ready:%s  in_progress:%s  blocked:%s  |  progress: %s/%s (%s%%)\n' \
+      "$closed" "$ready" "$in_progress" "$blocked" "$closed" "$total" "$pct"
+  else
+    printf '  closed:%s  ready:%s  in_progress:%s  blocked:%s  |  progress: 0/0\n' \
+      "$closed" "$ready" "$in_progress" "$blocked"
+  fi
+
+  return 0
+}
+
+# ---------------------------------------------------------------------------
 # f9_dash_bead_lists — phu.3.2
 # Render ready / in_progress / blocked bead lists sourced from bd.
 # Strictly read-only (no bd writes, no git ops).
@@ -151,11 +195,13 @@ f9_dash_status_panel() {
 }
 
 # ---------------------------------------------------------------------------
-# f9_dash_render — one full render pass (status panel + bead lists).
+# f9_dash_render — one full render pass (summary + status panel + bead lists).
 # Strictly read-only.
 # ---------------------------------------------------------------------------
 f9_dash_render() {
   printf 'Shift Dashboard\n'
+  _dash_header "SUMMARY"
+  f9_dash_summary
   f9_dash_status_panel
   f9_dash_bead_lists
   printf '\n'

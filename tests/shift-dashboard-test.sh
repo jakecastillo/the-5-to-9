@@ -33,6 +33,18 @@ case "$*" in
   "blocked --json")
     printf '[{"id":"test-b1","title":"Blocked bead one"}]\n'
     ;;
+  "count --status closed")
+    printf '5\n'
+    ;;
+  "count --status in_progress")
+    printf '1\n'
+    ;;
+  "count --status blocked")
+    printf '1\n'
+    ;;
+  "count --status ready")
+    printf '2\n'
+    ;;
   # Writes must never be called — surface them loudly.
   "create"*|"close"*|"update"*|"import"*|"init"*|"export"*)
     printf 'WRITE_ATTEMPT: %s\n' "$*" >&2
@@ -254,6 +266,74 @@ loop_writes="$(bash "$DASH" --watch --refreshes 2 2>&1 | grep -c 'WRITE_ATTEMPT'
 grep -q -i 'usage\|--watch\|shift-dashboard' "$DASH" \
   && ok "script contains usage/entrypoint documentation" \
   || no "script missing usage/entrypoint documentation"
+
+# ── 16. summary header: f9_dash_summary emits closed/ready/in_progress/blocked + progress ──
+# Source the dashboard and call f9_dash_summary directly with the stub bd on PATH.
+sum_out="$(bash -c ". '$DASH' --source-only 2>/dev/null; f9_dash_summary" 2>&1)"
+sum_rc=$?
+[[ "$sum_rc" -eq 0 ]] \
+  && ok "f9_dash_summary exits 0" \
+  || no "f9_dash_summary exited $sum_rc (must be 0)"
+
+# Must contain closed count (5)
+printf '%s' "$sum_out" | grep -qE 'closed.*5|5.*closed' \
+  && ok "summary shows closed count 5" \
+  || no "summary missing closed count 5 (got: $sum_out)"
+
+# Must contain ready count (2)
+printf '%s' "$sum_out" | grep -qE 'ready.*2|2.*ready' \
+  && ok "summary shows ready count 2" \
+  || no "summary missing ready count 2 (got: $sum_out)"
+
+# Must contain in_progress count (1)
+printf '%s' "$sum_out" | grep -qEi 'in.progress.*1|1.*in.progress|in_progress.*1|1.*in_progress' \
+  && ok "summary shows in_progress count 1" \
+  || no "summary missing in_progress count 1 (got: $sum_out)"
+
+# Must contain blocked count (1)
+printf '%s' "$sum_out" | grep -qE 'blocked.*1|1.*blocked' \
+  && ok "summary shows blocked count 1" \
+  || no "summary missing blocked count 1 (got: $sum_out)"
+
+# Must contain a progress indicator (e.g. "5/9" or "56%" — closed/total or percent)
+printf '%s' "$sum_out" | grep -qE '[0-9]+/[0-9]+|[0-9]+%' \
+  && ok "summary shows a progress indicator (closed/total or %)" \
+  || no "summary missing progress indicator (got: $sum_out)"
+
+# ── 17. summary header: f9_dash_render emits summary BEFORE status panel ─────
+sum_render_out="$(bash "$DASH" 2>&1)"
+# Summary line must appear; grep for progress indicator which is unique to summary.
+printf '%s' "$sum_render_out" | grep -qE '[0-9]+/[0-9]+|[0-9]+%' \
+  && ok "f9_dash_render output contains summary progress indicator" \
+  || no "f9_dash_render output missing summary progress indicator (got: $sum_render_out)"
+
+# Summary must appear before the SHIFT STATUS section.
+summary_line="$(printf '%s\n' "$sum_render_out" | grep -n -E '[0-9]+/[0-9]+|[0-9]+%' | head -1 | cut -d: -f1)"
+status_line="$(printf '%s\n' "$sum_render_out" | grep -n -i 'SHIFT STATUS' | head -1 | cut -d: -f1)"
+if [[ -n "$summary_line" && -n "$status_line" ]]; then
+  [[ "$summary_line" -lt "$status_line" ]] \
+    && ok "summary appears before SHIFT STATUS panel" \
+    || no "summary appears AFTER SHIFT STATUS panel (summary=$summary_line status=$status_line)"
+else
+  no "could not locate summary or SHIFT STATUS line in render output"
+fi
+
+# ── 18. summary header: no-bd fallback exits 0 with clear message ────────────
+sum_nobd_out="$(PATH="$TMP/nobin:/bin:/usr/bin" bash -c ". '$DASH' --source-only 2>/dev/null; f9_dash_summary" 2>&1)"
+sum_nobd_rc=0
+PATH="$TMP/nobin:/bin:/usr/bin" bash -c ". '$DASH' --source-only 2>/dev/null; f9_dash_summary" >/dev/null 2>&1 || sum_nobd_rc=$?
+[[ "$sum_nobd_rc" -eq 0 ]] \
+  && ok "summary no-bd fallback exits 0" \
+  || no "summary no-bd fallback exited $sum_nobd_rc (must be 0)"
+printf '%s' "$sum_nobd_out" | grep -qi 'bd not available\|not available\|bd.*not.*found' \
+  && ok "summary no-bd fallback prints clear unavailable message" \
+  || no "summary no-bd fallback missing clear message (got: $sum_nobd_out)"
+
+# ── 19. summary is strictly read-only: no bd writes ──────────────────────────
+sum_writes="$(bash -c ". '$DASH' --source-only 2>&1; f9_dash_summary" 2>&1 | grep -c 'WRITE_ATTEMPT' || true)"
+[[ "$sum_writes" -eq 0 ]] \
+  && ok "f9_dash_summary made no bd write calls" \
+  || no "f9_dash_summary attempted a bd write (WRITE_ATTEMPT seen)"
 
 if [[ "$fail" -eq 0 ]]; then
   echo "shift-dashboard-test: GREEN"
