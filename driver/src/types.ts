@@ -27,6 +27,13 @@ export interface WorkerOutcome {
   summary: string;
   filesTouched: string[];
   costUsd: number;
+  /**
+   * An outward/irreversible command the sandboxed worker could NOT run itself and
+   * is SURFACING for a human consent gate (Phase 1c). When present + flagged
+   * irreversible, the orchestrator requests consent and — only on a type-to-confirm
+   * APPROVE — performs this EXACT string verbatim. Optional: most outcomes omit it.
+   */
+  requestedAction?: string;
 }
 
 export type Validated<T> = { ok: true; value: T } | { ok: false; error: string };

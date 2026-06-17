@@ -31,3 +31,44 @@ test('rejects an unknown status', () => {
   });
   assert.equal(r.ok, false);
 });
+
+test('accepts an optional string requestedAction (an outward action needing consent)', () => {
+  const r = validateWorkerOutcome({
+    beadId: 'b1',
+    role: 'dealer',
+    status: 'done',
+    summary: 'surfaced an outward action',
+    filesTouched: [],
+    costUsd: 0,
+    requestedAction: 'gh release create v1',
+  });
+  assert.equal(r.ok, true);
+  assert.equal(r.ok ? r.value.requestedAction : undefined, 'gh release create v1');
+});
+
+test('rejects a non-string requestedAction (must be a string if present)', () => {
+  const r = validateWorkerOutcome({
+    beadId: 'b1',
+    role: 'dealer',
+    status: 'done',
+    summary: 's',
+    filesTouched: [],
+    costUsd: 0,
+    requestedAction: 42,
+  });
+  assert.equal(r.ok, false);
+  assert.match(r.ok ? '' : r.error, /requestedAction/);
+});
+
+test('an absent requestedAction is fine (optional)', () => {
+  const r = validateWorkerOutcome({
+    beadId: 'b1',
+    role: 'dealer',
+    status: 'done',
+    summary: 's',
+    filesTouched: [],
+    costUsd: 0,
+  });
+  assert.equal(r.ok, true);
+  assert.equal(r.ok ? r.value.requestedAction : 'x', undefined);
+});
