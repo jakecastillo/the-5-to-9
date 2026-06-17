@@ -84,7 +84,9 @@ f9_dash_summary() {
   local closed ready in_progress blocked total pct
   closed="$(bd count --status closed 2>/dev/null | _dash_first_int)"
   closed="${closed:-0}"
-  ready="$(bd count --status ready 2>/dev/null | _dash_first_int)"
+  # "ready" is a computed unblocked-open VIEW, not a status — bd count --status ready is
+  # always 0. Use the real ready query (f9_ready_count = bd ready --json | length).
+  ready="$(f9_ready_count 2>/dev/null | _dash_first_int)"
   ready="${ready:-0}"
   in_progress="$(bd count --status in_progress 2>/dev/null | _dash_first_int)"
   in_progress="${in_progress:-0}"

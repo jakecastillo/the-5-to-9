@@ -43,7 +43,10 @@ case "$*" in
     printf '1\n'
     ;;
   "count --status ready")
-    printf '2\n'
+    # Bogus sentinel: "ready" is NOT a real bd status. The summary must derive ready from
+    # `bd ready --json` (2 beads above), NOT this. If the code regresses to count --status
+    # ready, the summary shows 99 and the ready=2 assertion below fails (catches bead 4ab).
+    printf '99\n'
     ;;
   # Writes must never be called — surface them loudly.
   "create"*|"close"*|"update"*|"import"*|"init"*|"export"*)
