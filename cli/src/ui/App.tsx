@@ -267,7 +267,6 @@ export function App({ initial, rawModeSupported = true, deps = {} }: AppProps): 
             model={model}
             isActive={ui.focusedPane === 'backlog'}
             selectedId={ui.selectedBeadId}
-            scrollOffset={ui.scrollOffset}
             filter={ui.filter}
             onSelect={(id) => setUi((s) => ({ ...s, selectedBeadId: id }))}
           />
