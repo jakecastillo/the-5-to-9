@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+driver/node_modules/
+
+# Git internals
+.git/
+
+# Beads DB (local-only state)
+.beads/
+
+# Plugin component markdown — gate checks frontmatter; skills/ synced byte-for-byte
+# into .agents/plugins/the-5-to-9/skills/ — do NOT let Prettier rewrite these
+agents/
+commands/
+skills/
+.agents/
+
+# Lock files and build artifacts
+pnpm-lock.yaml
+package-lock.json
+yarn.lock
+*.lock
+
+# Image / binary assets
+*.svg
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.ico
+*.woff
+*.woff2
+
+# superpowers archives / design docs kept verbatim
+docs/superpowers/

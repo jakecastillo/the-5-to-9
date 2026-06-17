@@ -287,6 +287,22 @@ else
   note "shellcheck not installed — skipped (CI runs it non-blocking)"
 fi
 
+# ── 7. Optional: shfmt (never blocks) ────────────────────────────────────────
+head_ "shfmt (optional)"
+if have shfmt; then
+  shfmt_bad=0
+  while IFS= read -r s; do
+    if shfmt -d "$s" >/dev/null 2>&1; then :; else shfmt_bad=1; fi
+  done < <(find hooks scripts tests -type f -name '*.sh' 2>/dev/null)
+  if [[ "$shfmt_bad" -eq 0 ]]; then
+    ok "shfmt clean (no diffs)"
+  else
+    note "shfmt found style diffs (non-blocking) — run 'bash scripts/format.sh' or 'shfmt -l hooks/ scripts/ tests/' to see them"
+  fi
+else
+  note "shfmt not installed — skipped (install shfmt to check bash formatting)"
+fi
+
 # ── verdict ──────────────────────────────────────────────────────────────────
 printf '\n══════════════════════════════════════════════════════════════\n'
 if [[ "$fail" -eq 0 ]]; then

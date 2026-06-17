@@ -61,20 +61,20 @@ reporter of any incident.
 Maintainers will follow these Community Impact Guidelines in determining the
 consequences for any action they deem in violation of this Code of Conduct:
 
-1. **Correction.** *Community impact:* use of inappropriate language or other behavior
-   deemed unprofessional or unwelcome. *Consequence:* a private, written warning,
+1. **Correction.** _Community impact:_ use of inappropriate language or other behavior
+   deemed unprofessional or unwelcome. _Consequence:_ a private, written warning,
    providing clarity around the nature of the violation and why the behavior was
    inappropriate. A public apology may be requested.
-2. **Warning.** *Community impact:* a violation through a single incident or series of
-   actions. *Consequence:* a warning with consequences for continued behavior. No
+2. **Warning.** _Community impact:_ a violation through a single incident or series of
+   actions. _Consequence:_ a warning with consequences for continued behavior. No
    interaction with the people involved for a specified period. Violating these terms
    may lead to a temporary or permanent ban.
-3. **Temporary ban.** *Community impact:* a serious violation of community standards,
-   including sustained inappropriate behavior. *Consequence:* a temporary ban from any
+3. **Temporary ban.** _Community impact:_ a serious violation of community standards,
+   including sustained inappropriate behavior. _Consequence:_ a temporary ban from any
    sort of interaction or public communication with the community for a specified period.
-4. **Permanent ban.** *Community impact:* demonstrating a pattern of violation,
+4. **Permanent ban.** _Community impact:_ demonstrating a pattern of violation,
    harassment of an individual, or aggression toward or disparagement of classes of
-   individuals. *Consequence:* a permanent ban from any sort of public interaction
+   individuals. _Consequence:_ a permanent ban from any sort of public interaction
    within the community.
 
 ## Attribution

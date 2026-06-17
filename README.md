@@ -31,15 +31,15 @@ If a step doesn't make the code more correct or the loop more honest, it's not i
 
 ## Meet the crew
 
-| Name | Role | Default model |
-|------|------|---------------|
-| **The Owner** | Executive — strategy & goal-setting | `opus` |
-| **The Pit Boss** | Project manager / orchestrator (lead) | `sonnet` |
-| **The Cage Cashier** | Integration / single-writer merge gate | `sonnet` |
-| **The Dealer** | Developer (TDD, works in an isolated worktree) | `sonnet` |
-| **The Floor Auditor** | QA / independent verifier | `sonnet` |
-| **The Eye in the Sky** | Security | `opus` |
-| **The Floorman** | DevOps / CI-CD | `haiku` |
+| Name                   | Role                                           | Default model |
+| ---------------------- | ---------------------------------------------- | ------------- |
+| **The Owner**          | Executive — strategy & goal-setting            | `opus`        |
+| **The Pit Boss**       | Project manager / orchestrator (lead)          | `sonnet`      |
+| **The Cage Cashier**   | Integration / single-writer merge gate         | `sonnet`      |
+| **The Dealer**         | Developer (TDD, works in an isolated worktree) | `sonnet`      |
+| **The Floor Auditor**  | QA / independent verifier                      | `sonnet`      |
+| **The Eye in the Sky** | Security                                       | `opus`        |
+| **The Floorman**       | DevOps / CI-CD                                 | `haiku`       |
 
 Right-sized models for right-sized jobs: the heavy thinkers (strategy, security) get `opus`, the steady workers get `sonnet`, the chores get `haiku`.
 
@@ -121,6 +121,7 @@ prerequisites, the three install options, the reload step, and the automatic bea
 bootstrap on first clock-in. The short version:
 
 **Local dev (edits reflect live):**
+
 ```bash
 git clone https://github.com/jakecastillo/the-5-to-9
 cd the-5-to-9
@@ -128,6 +129,7 @@ claude --plugin-dir "$PWD"
 ```
 
 **Via marketplace (then reload):**
+
 ```text
 /plugin marketplace add jakecastillo/the-5-to-9   # fetches the pushed main branch
 /plugin install the-5-to-9@the-5-to-9
@@ -142,6 +144,7 @@ On first clock-in the crew auto-runs `bd init` + `bd import` from the committed 
 `bd ready` works with no manual beads setup.
 
 **Test gate:**
+
 ```bash
 bash tests/validate-plugin.sh   # must exit 0; CI runs it
 ```

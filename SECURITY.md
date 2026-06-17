@@ -7,10 +7,10 @@ before running it on anything you care about.
 
 ## Supported versions
 
-| Version | Supported |
-| ------- | --------- |
+| Version | Supported               |
+| ------- | ----------------------- |
 | 0.1.x   | ✅ (active development) |
-| < 0.1   | ❌ |
+| < 0.1   | ❌                      |
 
 This is early, experimental software. Treat it accordingly.
 
@@ -32,7 +32,7 @@ The crew is built **not** to take irreversible outward actions on its own.
   destroying or rotating secrets. It splits the command on shell separators and
   classifies each part, so a force-push or deploy can't sneak through inside a compound
   command. It is a best-effort **deny-list, not a sandbox**: it covers the named outward
-  actions across common tools but can't be exhaustive, and purely *local* destruction
+  actions across common tools but can't be exhaustive, and purely _local_ destruction
   (`rm -rf`, `dd`) is intentionally out of scope — the crew works a deletable shift
   branch, and your review of that branch is the real backstop. The gate runs on
   **Node 18+** behind a bash launcher; if `node` is absent it falls back to the bash
@@ -61,7 +61,7 @@ Please report security issues **privately** — do not open a public issue for a
 vulnerability.
 
 1. **Preferred:** open a private report via **GitHub Security Advisories**
-   (the repository's *Security → Report a vulnerability* tab).
+   (the repository's _Security → Report a vulnerability_ tab).
 2. **Fallback:** if you can't use Advisories, email **jakecast@hawaii.edu** with
    `[the-5-to-9 security]` in the subject.
 3. Include: a description, reproduction steps, affected version, and potential impact.

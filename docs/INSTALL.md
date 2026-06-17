@@ -10,19 +10,19 @@ from any dev-machine-local state.
 
 **Core — to run the plugin (the markdown crew, the primary runtime):**
 
-| Tool | Why | Install hint |
-|------|-----|-------------|
-| `claude` | the plugin host (Claude Code CLI) | <https://docs.anthropic.com/claude-code> (`npm i -g @anthropic-ai/claude-code`) |
-| `bd` (beads) | the backlog + crew memory | <https://github.com/steveyegge/beads> (`brew install steveyegge/tap/beads` or see releases) |
-| `git` | branch isolation + the dedicated shift branch | <https://git-scm.com> |
-| `node` ≥ 18 *(recommended)* | powers the irreversible-action gate; **falls back to a bash classifier if absent**, so it's recommended, not required | <https://nodejs.org> or `nvm install 20` |
+| Tool                        | Why                                                                                                                   | Install hint                                                                                |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `claude`                    | the plugin host (Claude Code CLI)                                                                                     | <https://docs.anthropic.com/claude-code> (`npm i -g @anthropic-ai/claude-code`)             |
+| `bd` (beads)                | the backlog + crew memory                                                                                             | <https://github.com/steveyegge/beads> (`brew install steveyegge/tap/beads` or see releases) |
+| `git`                       | branch isolation + the dedicated shift branch                                                                         | <https://git-scm.com>                                                                       |
+| `node` ≥ 18 _(recommended)_ | powers the irreversible-action gate; **falls back to a bash classifier if absent**, so it's recommended, not required | <https://nodejs.org> or `nvm install 20`                                                    |
 
 **Optional — only for the experimental TypeScript driver (`driver/`):**
 
-| Tool | Why | Install hint |
-|------|-----|-------------|
-| `node` ≥ 20 | the driver runs via `tsx` (no build step) | `nvm install 20` |
-| `pnpm` | installs the driver's dependencies | `npm i -g pnpm` or <https://pnpm.io/installation> |
+| Tool        | Why                                       | Install hint                                      |
+| ----------- | ----------------------------------------- | ------------------------------------------------- |
+| `node` ≥ 20 | the driver runs via `tsx` (no build step) | `nvm install 20`                                  |
+| `pnpm`      | installs the driver's dependencies        | `npm i -g pnpm` or <https://pnpm.io/installation> |
 
 You do **not** need Node 20 or pnpm to run the crew — only `claude` + `bd` + `git`.
 
@@ -57,7 +57,7 @@ claude plugin marketplace add "$PWD"          # register this repo as a marketpl
 claude plugin install the-5-to-9@the-5-to-9   # install + enable (user scope)
 ```
 
-> **Snapshot, not a symlink.** Install *copies* the repo into
+> **Snapshot, not a symlink.** Install _copies_ the repo into
 > `~/.claude/plugins/cache/…` at its current commit. Later edits to your working
 > tree won't appear until you bump `version` in `.claude-plugin/plugin.json` and run
 > `claude plugin update the-5-to-9@the-5-to-9`. For an edit-reflects-instantly loop,
@@ -136,7 +136,7 @@ credentials.
 
 ## Guarantees (unchanged on a fresh machine)
 
-- **No-clobber.** The crew never writes to *your* repo's `CLAUDE.md` /
+- **No-clobber.** The crew never writes to _your_ repo's `CLAUDE.md` /
   `AGENTS.md`. Context is additive via hooks/skills. Priority:
   **your repo > The 5 to 9 > defaults.**
 - **Irreversible-action gate.** Hard gates fire only on irreversible actions;

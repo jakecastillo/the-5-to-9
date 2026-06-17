@@ -42,15 +42,15 @@ flowchart TB
     Cage -->|"serialized merge → shift branch"| Backlog
 ```
 
-| Role | Job | Model |
-|------|-----|-------|
-| The Owner | strategy & goal-setting; signs off irreversible actions | `opus` |
-| The Pit Boss | orchestrator / lead — turns the goal into a beads DAG, dispatches | `sonnet` |
-| The Cage Cashier | integration — the single-writer merge gate | `sonnet` |
-| The Dealer | developer — one bead, TDD, isolated worktree (several at once) | `sonnet` |
-| The Floor Auditor | independent QA — re-counts work against acceptance | `sonnet` |
-| The Eye in the Sky | security — scans changes, can freeze a release | `opus` |
-| The Floorman | devops / CI-CD — config, lint, hygiene, staging | `haiku` |
+| Role               | Job                                                               | Model    |
+| ------------------ | ----------------------------------------------------------------- | -------- |
+| The Owner          | strategy & goal-setting; signs off irreversible actions           | `opus`   |
+| The Pit Boss       | orchestrator / lead — turns the goal into a beads DAG, dispatches | `sonnet` |
+| The Cage Cashier   | integration — the single-writer merge gate                        | `sonnet` |
+| The Dealer         | developer — one bead, TDD, isolated worktree (several at once)    | `sonnet` |
+| The Floor Auditor  | independent QA — re-counts work against acceptance                | `sonnet` |
+| The Eye in the Sky | security — scans changes, can freeze a release                    | `opus`   |
+| The Floorman       | devops / CI-CD — config, lint, hygiene, staging                   | `haiku`  |
 
 ---
 
@@ -109,7 +109,7 @@ and instruction priority is **your repo > The 5 to 9 > defaults**.
 The 5 to 9 ships as a Claude Code plugin, but over a deliberately **portable core**. The
 brain (`AGENTS.md`), the protocol (`skills/`), the loop (`scripts/` + `hooks/`, POSIX
 bash), the memory (`beads`), and MCP servers are tool-agnostic. What's Claude-specific is
-the *wiring* — packaged slash commands, subagent fan-out, manifest-driven hooks — which is
+the _wiring_ — packaged slash commands, subagent fan-out, manifest-driven hooks — which is
 phase-2 for other runtimes.
 
 ```mermaid

@@ -2,7 +2,7 @@
 
 The shared voice reference for the crew. This doc is **on-invoke only** (it costs zero
 always-on context — it's read when someone's working branding, not loaded every session).
-Per-role flavor lines live in each agent's *body*, never its frontmatter.
+Per-role flavor lines live in each agent's _body_, never its frontmatter.
 
 ## The voice
 

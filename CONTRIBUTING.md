@@ -55,6 +55,64 @@ Entrypoints once installed: `/clock-in [goal]`, `/clock-out`, `/shift-status`,
 
 ---
 
+## Formatting & dev tools
+
+The repo uses **layered formatters** — each tool owns its format domain:
+
+| Domain                       | Tool                                 | Scope                                                 |
+| ---------------------------- | ------------------------------------ | ----------------------------------------------------- |
+| TypeScript / JavaScript      | [Biome](https://biomejs.dev/)        | `driver/src`, `driver/test`                           |
+| Markdown, YAML, JSON configs | [Prettier](https://prettier.io/)     | top-level `*.md`, `docs/*.md`, `*.yml/*.yaml` configs |
+| Bash / shell scripts         | [shfmt](https://github.com/mvdan/sh) | `hooks/`, `scripts/`, `tests/` (`*.sh`)               |
+| Editor whitespace            | EditorConfig (`.editorconfig`)       | all files                                             |
+
+**What each tool owns (and does NOT own):**
+
+- Biome is configured in `driver/biome.json` and runs only on `driver/`. It does not touch
+  markdown or YAML.
+- Prettier targets docs and config files. It is explicitly excluded from `agents/`, `commands/`,
+  `skills/`, `.agents/`, `docs/superpowers/`, and lockfiles (see `.prettierignore`). These are
+  either gate-sensitive (frontmatter sync) or kept verbatim.
+- shfmt is **non-blocking** — it reports diffs but never fails the gate. Same pattern as shellcheck.
+
+**Run all formatters at once:**
+
+```bash
+bash scripts/format.sh          # write mode (applies changes)
+bash scripts/format.sh --check  # check mode (exits non-zero if changes needed)
+```
+
+Or run individually:
+
+```bash
+# Biome (TypeScript/JS in driver/)
+cd driver && pnpm run format
+
+# Prettier (repo docs/configs)
+driver/node_modules/.bin/prettier --write README.md CONTRIBUTING.md docs/*.md
+
+# shfmt (bash — install separately; non-blocking in gate)
+shfmt -w hooks/ scripts/ tests/
+```
+
+**Installing formatting tools:**
+
+```bash
+# Prettier (comes with driver/ devDependencies — no global install needed)
+cd driver && pnpm install
+
+# shfmt (optional; gate skips gracefully if absent)
+go install mvdan.cc/sh/v3/cmd/shfmt@latest
+# or: brew install shfmt  (macOS)
+# or: scoop install shfmt  (Windows)
+```
+
+**EditorConfig** (`.editorconfig`) handles whitespace/line-endings for editors that support it
+(VS Code, JetBrains, etc.). It enforces LF endings for bash scripts, which is required for
+Git Bash compatibility on Windows.
+
+---
+
 ## The test gate (the only "green" that counts)
 
 ```bash
@@ -101,7 +159,7 @@ Test-first is welcome and is how the gate corpus was built (it caught a real gap
 ## Conventions (non-negotiable)
 
 These mirror `AGENTS.md`; read that file too — it's the canonical guide for working
-*on* this repo. For *how the crew operates on a target repo*, see the
+_on_ this repo. For _how the crew operates on a target repo_, see the
 `running-the-shift` skill.
 
 - **POSIX bash, Git-Bash-compatible.** Hooks and scripts are POSIX `sh`, must run under
@@ -117,7 +175,7 @@ These mirror `AGENTS.md`; read that file too — it's the canonical guide for wo
 - **State, not history.** Durable state lives in **beads** and under
   `.claude/five-to-nine/` (gitignored), never in conversation history. Keep
   `.beads/*.db` local; commit only the JSONL export.
-- **No-clobber.** Never write to a *user* repo's `CLAUDE.md` / `AGENTS.md`. Inject
+- **No-clobber.** Never write to a _user_ repo's `CLAUDE.md` / `AGENTS.md`. Inject
   context additively via hooks/skills only. Instruction priority is
   **user repo > The 5 to 9 > defaults.** This rule applies to the crew's behavior and
   to your changes — don't add anything that would stomp a target repo's files.
@@ -160,7 +218,7 @@ test(validate): cover skill frontmatter
 ```
 
 Common types: `feat`, `fix`, `docs`, `chore`, `test`, `refactor`, `ci`. Keep the
-subject imperative and under ~72 chars. Explain the *why* in the body when it isn't
+subject imperative and under ~72 chars. Explain the _why_ in the body when it isn't
 obvious.
 
 ---
