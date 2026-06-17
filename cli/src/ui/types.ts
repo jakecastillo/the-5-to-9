@@ -4,12 +4,22 @@ import type { Pane } from './keymap.ts';
 /** Which transient overlay (if any) currently traps input. */
 export type ModalKind = 'clock-in' | 'help' | 'gate' | 'quit-confirm' | 'report' | null;
 
-/** A surfaced gate event (Phase 1 — surface only, no interactive approve). */
+/**
+ * A surfaced gate event. When `id`/`token` are present it is a Phase-1b pending
+ * consent the type-to-confirm GateModal can resolve; without them it is a
+ * surface-only notice (GateNotice).
+ */
 export interface GateEvent {
+  /** The consent record id (Phase 1b — present means resolvable). */
+  id?: string;
   /** The flagged command/segment. */
   segment: string;
+  /** The full flagged command (alias of segment for the consent contract). */
+  command?: string;
   /** The irreversible category (deploy/publish/force-push/delete-remote/rotate-secrets). */
   category: string;
+  /** The canonical confirm token the human must type (Phase 1b). */
+  token?: string;
   /** The bead the flagged command was working on, if known. */
   bead?: string;
   /** The role that triggered it, if known. */

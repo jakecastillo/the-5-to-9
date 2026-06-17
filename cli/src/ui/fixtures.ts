@@ -50,6 +50,20 @@ export const ACTIVE_MODEL: DashboardModel = {
   progress: { closed: 7, total: 11, pct: 63 },
 };
 
+/** An active model carrying a pending consent (Phase 1b type-to-confirm gate). */
+export const PENDING_GATE_MODEL: DashboardModel = {
+  ...ACTIVE_MODEL,
+  pendingGate: {
+    id: 'c-abc',
+    segment: 'gh release create v1',
+    command: 'gh release create v1',
+    category: 'publish',
+    token: 'gh',
+    bead: 't59-7e0',
+    role: 'Cage Cashier',
+  },
+};
+
 /** An idle dashboard model — no active shift, empty backlog. */
 export const IDLE_MODEL: DashboardModel = {
   state: IDLE_SHIFT,

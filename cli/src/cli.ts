@@ -5,6 +5,7 @@ import { clockIn } from './operations/clock-in.ts';
 import { clockOut } from './operations/clock-out.ts';
 import { getDashboardModel } from './operations/dashboard-model.ts';
 import { doctor } from './operations/doctor.ts';
+import { gateApprove, gateDeny, gatePending } from './operations/gate.ts';
 import { startRun } from './operations/run.ts';
 import { status } from './operations/status.ts';
 import { stateDir as defaultStateDir } from './paths.ts';
@@ -163,6 +164,43 @@ function buildProgram(io: Io, deps: CliDeps): Command {
     .action((key: string, value: string) => {
       const cfg = setConfig(key, value);
       io.out(`${JSON.stringify(cfg, null, 2)}\n`);
+    });
+
+  // gate — scriptable consent (the non-TTY path). A failed approve/deny writes
+  // to stderr and throws so runCli maps it to a nonzero exit. Fail-closed: a
+  // wrong/missing token can never approve.
+  const gate = program
+    .command('gate')
+    .description('approve/deny pending irreversible actions (scriptable consent)');
+  gate
+    .command('pending')
+    .description('list pending consent requests (id, command, category, token)')
+    .action(() => {
+      const r = gatePending({ stateDir });
+      io.out(`${r.message}\n`);
+    });
+  gate
+    .command('approve <id>')
+    .description('approve a pending action; --token must match exactly')
+    .requiredOption('--token <token>', 'the exact confirm token (from `gate pending`)')
+    .action((id: string, opts: { token: string }) => {
+      const r = gateApprove(id, opts.token, { stateDir });
+      if (!r.ok) {
+        io.err(`${r.message}\n`);
+        throw new CommanderError(1, 'gate.refused', r.message);
+      }
+      io.out(`${r.message}\n`);
+    });
+  gate
+    .command('deny <id>')
+    .description('deny a pending action (no token needed)')
+    .action((id: string) => {
+      const r = gateDeny(id, { stateDir });
+      if (!r.ok) {
+        io.err(`${r.message}\n`);
+        throw new CommanderError(1, 'gate.refused', r.message);
+      }
+      io.out(`${r.message}\n`);
     });
 
   program
