@@ -116,6 +116,69 @@ test('dashboard without --watch stays a one-shot text render (no TUI)', async ()
   expect(c.out()).toMatch(/progress|ready/i);
 });
 
+// ── run subcommand: numeric arg validation (P1-B audit fix) ──────────────────
+
+test('run --max-iterations abc → nonzero, clear error naming the flag, driver NOT spawned', async () => {
+  const repo = mkdtempSync(join(tmpdir(), 'f9-cli-'));
+  const c = capture();
+  const startRun = vi.fn(async () => ({ pid: 1, journalPath: 'x', detached: true as const }));
+  const code = await runCli(['run', '--backend', 'claude', '--max-iterations', 'abc'], c.io, {
+    ...deps(repo),
+    startRun,
+  });
+  expect(code).not.toBe(0);
+  expect(c.err()).toMatch(/max-iterations/i);
+  // INVARIANT: a NaN must never reach the driver.
+  expect(startRun).not.toHaveBeenCalled();
+});
+
+test('run --concurrency xyz → nonzero, clear error naming the flag, driver NOT spawned', async () => {
+  const repo = mkdtempSync(join(tmpdir(), 'f9-cli-'));
+  const c = capture();
+  const startRun = vi.fn(async () => ({ pid: 1, journalPath: 'x', detached: true as const }));
+  const code = await runCli(['run', '--backend', 'claude', '--concurrency', 'xyz'], c.io, {
+    ...deps(repo),
+    startRun,
+  });
+  expect(code).not.toBe(0);
+  expect(c.err()).toMatch(/concurrency/i);
+  expect(startRun).not.toHaveBeenCalled();
+});
+
+test('run --concurrency 0 → nonzero (must be a positive integer), driver NOT spawned', async () => {
+  const repo = mkdtempSync(join(tmpdir(), 'f9-cli-'));
+  const c = capture();
+  const startRun = vi.fn(async () => ({ pid: 1, journalPath: 'x', detached: true as const }));
+  const code = await runCli(['run', '--backend', 'claude', '--concurrency', '0'], c.io, {
+    ...deps(repo),
+    startRun,
+  });
+  expect(code).not.toBe(0);
+  expect(c.err()).toMatch(/concurrency/i);
+  expect(startRun).not.toHaveBeenCalled();
+});
+
+test('run with a valid integer --max-iterations still starts (driver spawned with the number)', async () => {
+  const repo = mkdtempSync(join(tmpdir(), 'f9-cli-'));
+  await runCli(['clock-in', 'ship X', '--no-branch'], capture().io, deps(repo));
+  const c = capture();
+  const startRun: NonNullable<CliDeps['startRun']> = vi.fn(async () => ({
+    pid: 42,
+    journalPath: 'j',
+    detached: true as const,
+  }));
+  const code = await runCli(
+    ['run', '--backend', 'claude', '--max-iterations', '5', '--concurrency', '2'],
+    c.io,
+    { ...deps(repo), startRun },
+  );
+  expect(code).toBe(0);
+  expect(startRun).toHaveBeenCalledTimes(1);
+  const optsArg = vi.mocked(startRun).mock.calls[0][0];
+  expect(optsArg.maxIterations).toBe(5);
+  expect(optsArg.concurrency).toBe(2);
+});
+
 // ── gate subcommand (scriptable, non-TTY consent) ────────────────────────────
 
 function stateDirOf(repo: string): string {
