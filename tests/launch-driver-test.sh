@@ -9,7 +9,7 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$HERE/.." && pwd)"
 DISPATCH="$ROOT/scripts/clock-in-dispatch.sh"
 LAUNCH_DRIVER="$ROOT/scripts/launch-driver.sh"
-NIGHT_SHIFT="$ROOT/scripts/night-shift.sh"
+# (the no-driver path routes to scripts/night-shift.sh — stubbed per-test below)
 
 fail=0
 ok() { printf '  OK %s\n' "$*"; }

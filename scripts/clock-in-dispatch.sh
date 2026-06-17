@@ -23,7 +23,6 @@
 set -uo pipefail
 
 F9_HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-F9_ROOT="$(cd "$F9_HERE/.." && pwd)"
 
 use_driver=0
 passthrough=()

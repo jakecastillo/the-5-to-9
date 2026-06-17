@@ -68,7 +68,7 @@ export F9_BD_CLOSED_COUNT=0
 export F9_BD_OPEN_COUNT=1
 
 # No-progress remains the outer guard for a live ready queue that is not moving.
-ns_out="$((
+ns_out="$( (
   cd "$TMP" &&
     FIVE_TO_NINE_NOPROGRESS=2 \
     bash "$ROOT/scripts/night-shift.sh" --max-iterations 6 --dry-run
@@ -109,7 +109,7 @@ printf '%s' "$gate_out" | grep -q 'irreversible gate self-check passed' \
 attempts="$TMP/attempts.txt"
 state_file="$TMP/bd-state.txt"
 printf 'ready\n' > "$state_file"
-stuck_out="$((
+stuck_out="$( (
   cd "$TMP" &&
     F9_ATTEMPTS="$attempts" \
     F9_BD_STATE="$state_file" \

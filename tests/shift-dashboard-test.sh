@@ -361,8 +361,10 @@ fi
 
 # ── 22. color: FIVE_TO_NINE_DASH_FORCE_COLOR=1 → ANSI escape codes present ───
 # Force-color opt-in must emit at least one ESC sequence in the section headers
-# or status-colored text.
-color_force_out="$(FIVE_TO_NINE_DASH_FORCE_COLOR=1 bash "$DASH" 2>&1)"
+# or status-colored text. Neutralize the ambient environment: NO_COLOR and
+# TERM=dumb both legitimately override force-color (verified in tests 23/24), and
+# CI runners (e.g. GitHub Actions) may set either — so isolate this case from them.
+color_force_out="$(env -u NO_COLOR TERM=xterm FIVE_TO_NINE_DASH_FORCE_COLOR=1 bash "$DASH" 2>&1)"
 if printf '%s' "$color_force_out" | LC_ALL=C grep -q $'\033'; then
   ok "FIVE_TO_NINE_DASH_FORCE_COLOR=1: output contains ANSI escape codes"
 else
@@ -390,14 +392,17 @@ fi
 # Bold is ESC[1m. The section headers (── X ──) should be bold.
 # Use printf + grep on the ESC byte directly; avoid bracket-expression collisions
 # by searching for ESC followed by "[1" as two separate pieces.
-color_bold_out="$(FIVE_TO_NINE_DASH_FORCE_COLOR=1 bash "$DASH" 2>&1)"
+# Same ambient-env isolation as test 22 (NO_COLOR / TERM=dumb override force-color).
+color_bold_out="$(env -u NO_COLOR TERM=xterm FIVE_TO_NINE_DASH_FORCE_COLOR=1 bash "$DASH" 2>&1)"
 # Count lines containing ESC followed by '[1' (bold SGR prefix) using LC_ALL=C.
-_bold_found="$(printf '%s' "$color_bold_out" | LC_ALL=C grep -c "$(printf '\033')\\[1" 2>/dev/null || echo 0)"
+# Use '|| true' (not '|| echo 0'): grep -c already prints 0 on no match and exits 1,
+# so '|| echo 0' would emit a SECOND 0 → "0\n0", which breaks the [[ -gt ]] arithmetic.
+_bold_found="$(printf '%s' "$color_bold_out" | LC_ALL=C grep -c "$(printf '\033')\\[1" 2>/dev/null || true)"
 if [[ "${_bold_found:-0}" -gt 0 ]]; then
   ok "FIVE_TO_NINE_DASH_FORCE_COLOR=1: section headers use bold escape"
 else
   # Softer check: at least one reset code (ESC[0m or ESC[0;…m) means styling ran.
-  _reset_found="$(printf '%s' "$color_bold_out" | LC_ALL=C grep -c "$(printf '\033')\\[0" 2>/dev/null || echo 0)"
+  _reset_found="$(printf '%s' "$color_bold_out" | LC_ALL=C grep -c "$(printf '\033')\\[0" 2>/dev/null || true)"
   if [[ "${_reset_found:-0}" -gt 0 ]]; then
     ok "FIVE_TO_NINE_DASH_FORCE_COLOR=1: ANSI reset codes present (styling active)"
   else

@@ -42,7 +42,9 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Run shellcheck
-        # Lint shift-crew shell entrypoints; non-blocking so style nits don't gate merges.
+        # Lint shift-crew shell entrypoints at warning severity. This job DOES gate the
+        # workflow (no continue-on-error), so keep it green: fix the finding, or add a
+        # scoped `# shellcheck disable=SCXXXX` with a reason rather than silencing broadly.
         uses: ludeeus/action-shellcheck@master
         with:
           severity: warning
