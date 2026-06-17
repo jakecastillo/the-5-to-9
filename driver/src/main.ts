@@ -104,6 +104,12 @@ export interface MainOpts {
   worktreeRoot?: string;
   /** Override stdout for output (default: process.stdout). */
   stdout?: { write: (s: string) => boolean | undefined };
+  /** Injectable clock (ms) for the consent gate timeout — tests inject it. */
+  now?: () => number;
+  /** Override the consent gate timeout (ms). Tests use a tiny value. */
+  consentTimeoutMs?: number;
+  /** Override the consent gate poll cadence (ms). */
+  consentPollMs?: number;
 }
 
 /** CLI entry point. Returns the process exit code. Now async (Slice 2). */
@@ -181,7 +187,7 @@ export async function main(
     };
     tick = async (_iteration: number) => runParallelTick(parallelDeps);
   } else {
-    // K=1 path: runSingleBeadTick — byte-unchanged from Slice 2 (spec §3.1/§5.2).
+    // K=1 path: runSingleBeadTick — now wired with the interactive consent gate.
     const tickDeps: TickDeps = {
       beads,
       journal,
@@ -193,6 +199,15 @@ export async function main(
       worktreeRoot,
       worktrees,
       baseBranch: 'main',
+      // Phase 1c: the consent gate performs an APPROVED outward action via this exec
+      // (the composition-root exec). The orchestrator's defaults bind requestConsent/
+      // awaitResolution/classify to the real consent contract under this stateDir;
+      // any deny/timeout/error leaves the bead blocked (default-deny).
+      exec,
+      stateDir,
+      now: opts.now,
+      consentTimeoutMs: opts.consentTimeoutMs,
+      consentPollMs: opts.consentPollMs,
     };
     tick = async (_iteration: number) => {
       const result = await runSingleBeadTick(tickDeps);

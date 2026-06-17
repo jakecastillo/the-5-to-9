@@ -58,6 +58,23 @@ test('parseCodexStdout extracts the structured outcome and sums tokens', () => {
   assert.equal(tokens, 234);
 });
 
+test('parseCodexStdout surfaces a requestedAction from the structured outcome', () => {
+  const stdout = sampleStdout({
+    status: 'done',
+    summary: 'surfaced an outward action',
+    filesTouched: [],
+    requestedAction: 'gh release create v1',
+  });
+  const { outcome } = parseCodexStdout(stdout, spec('dealer'));
+  assert.equal(outcome.requestedAction, 'gh release create v1');
+});
+
+test('parseCodexStdout leaves requestedAction undefined when absent', () => {
+  const stdout = sampleStdout({ status: 'done', summary: 'ok', filesTouched: [] });
+  const { outcome } = parseCodexStdout(stdout, spec('dealer'));
+  assert.equal(outcome.requestedAction, undefined);
+});
+
 test('parseCodexStdout throws when no agent_message is present', () => {
   const stdout = JSON.stringify({ type: 'turn.completed', usage: {} });
   assert.throws(() => parseCodexStdout(stdout, spec('dealer')), /no final agent_message/);

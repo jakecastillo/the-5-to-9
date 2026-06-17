@@ -1,0 +1,25 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "WorkerOutcome",
+  "description": "The structured final result a sandboxed worker emits. codex consumes this via --output-schema; the driver re-validates it with validateWorkerOutcome.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["status", "summary", "filesTouched"],
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": ["done", "failed", "blocked"]
+    },
+    "summary": {
+      "type": "string"
+    },
+    "filesTouched": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "requestedAction": {
+      "type": "string",
+      "description": "An outward/irreversible command the worker could NOT run itself and is surfacing for a human consent gate (Phase 1c). Optional."
+    }
+  }
+}

@@ -83,6 +83,9 @@ export function parseCodexStdout(
     summary: payload.summary,
     filesTouched: payload.filesTouched ?? [],
     costUsd: 0,
+    // Surface an outward action the worker could not run (Phase 1c). The schema
+    // validates it is a string when present; absent stays undefined.
+    requestedAction: payload.requestedAction,
   });
   if (!v.ok) throw new Error(`codex outcome invalid: ${v.error}`);
   return { outcome: v.value, tokens };

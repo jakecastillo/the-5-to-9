@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { BD_WRITE_DENY, IRREVERSIBLE_DENY } from '../src/adapters/adapter.ts';
-import { buildClaudeArgs } from '../src/adapters/claude.ts';
+import { ClaudeAdapter, buildClaudeArgs } from '../src/adapters/claude.ts';
 import { MockAdapter } from '../src/adapters/mock.ts';
+import type { ExecFn } from '../src/exec.ts';
 import type { WorkerSpec } from '../src/types.ts';
 
 const spec: WorkerSpec = {
@@ -27,6 +28,27 @@ test('Claude args carry model, output-format json, and disallowedTools', () => {
   assert.ok(args.join(' ').includes('--output-format json'));
   assert.ok(args.join(' ').includes('--disallowedTools'));
   assert.ok(args.join(' ').includes('Bash(bd create*)'));
+});
+
+test('ClaudeAdapter.run surfaces a requestedAction from the worker outcome', async () => {
+  const fn: ExecFn = async () => ({
+    stdout: JSON.stringify({
+      total_cost_usd: 0.03,
+      result: JSON.stringify({
+        beadId: 'b1',
+        role: 'dealer',
+        status: 'done',
+        summary: 'surfaced an outward action',
+        filesTouched: [],
+        requestedAction: 'gh release create v1',
+      }),
+    }),
+    stderr: '',
+    code: 0,
+  });
+  const out = await new ClaudeAdapter(fn).run(spec);
+  assert.equal(out.requestedAction, 'gh release create v1');
+  assert.equal(out.costUsd, 0.03);
 });
 
 test('MockAdapter returns the scripted outcome', async () => {

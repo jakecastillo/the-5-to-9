@@ -18,5 +18,11 @@ export function validateWorkerOutcome(x: unknown): Validated<WorkerOutcome> {
   if (typeof o.costUsd !== 'number' || Number.isNaN(o.costUsd)) {
     return { ok: false, error: 'costUsd must be a number' };
   }
+  // Optional outward action (Phase 1c). If present it MUST be a string — a
+  // non-string requestedAction is rejected so a malformed outcome can never
+  // smuggle a non-command shape into the consent gate.
+  if (o.requestedAction !== undefined && typeof o.requestedAction !== 'string') {
+    return { ok: false, error: 'requestedAction must be a string when present' };
+  }
   return { ok: true, value: o as unknown as WorkerOutcome };
 }

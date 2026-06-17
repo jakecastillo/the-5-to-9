@@ -290,6 +290,87 @@ test('fox: --backend api --concurrency 2 closes multiple beads per tick via runP
   }
 });
 
+test('K=1 wiring: a surfaced FLAGGED action with no human → times out (gate-denied), bead NOT closed, never performed', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'f9main-gate-'));
+  try {
+    const beadIds = ['g1'];
+    // Record every exec call so we can assert NOTHING was performed via `bash -c`.
+    const calls: string[] = [];
+    let readyPool = [...beadIds];
+    const exec: ExecFn = async (cmd, args) => {
+      const key = [cmd, ...args].join(' ');
+      calls.push(key);
+      if (key.includes('bd ready')) {
+        const out = readyPool.map((id) => ({ id, status: 'open', inScopeDirs: ['src'] }));
+        readyPool = [];
+        return { stdout: JSON.stringify(out), stderr: '', code: 0 };
+      }
+      if (key.startsWith('git checkout') || key.startsWith('git merge')) {
+        return { stdout: '', stderr: '', code: 0 };
+      }
+      return { stdout: '{}', stderr: '', code: 0 };
+    };
+
+    // The dealer SURFACES a flagged outward action (force-push is in IRREVERSIBLE_DENY).
+    const FLAGGED = 'git push --force origin main';
+    const scripts: Record<string, WorkerOutcome> = {
+      g1: {
+        beadId: 'g1',
+        role: 'dealer',
+        status: 'done',
+        summary: 'surfaced an outward action',
+        filesTouched: ['src/a.ts'],
+        costUsd: 0.001,
+        requestedAction: FLAGGED,
+      },
+    };
+    const adapterFactory: AdapterFactory = (_backend, _exec) => new MockAdapter(scripts);
+
+    let printedOutput = '';
+    const fakeStdout = {
+      write: (s: string) => {
+        printedOutput += s;
+      },
+    };
+
+    // Injected clock jumps past the (tiny) consent timeout → DENY with no real timer.
+    let t = 0;
+    const now = () => {
+      const v = t;
+      t += 10_000;
+      return v;
+    };
+
+    const code = await main(
+      ['--backend', 'claude', '--max-iterations', '1'],
+      exec,
+      adapterFactory,
+      {
+        stateDir: join(dir, '.f9-state'),
+        repoRoot: dir,
+        stdout: fakeStdout as unknown as typeof process.stdout,
+        now,
+        consentTimeoutMs: 100,
+        consentPollMs: 1,
+      },
+    );
+
+    assert.equal(code, 0);
+    // INVARIANT: the gate is wired into the live K=1 path — no human → timeout → DENY.
+    assert.ok(
+      !calls.some((c) => c === `bash -c ${FLAGGED}`),
+      `a non-approved flagged action must NEVER be performed; calls=${calls.join(' | ')}`,
+    );
+    // gate-denied → the bead stays blocked (NOT closed).
+    assert.ok(
+      !calls.some((c) => c.includes('bd close g1')),
+      `a gate-denied bead must not be closed; calls=${calls.join(' | ')}`,
+    );
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
 test('fox: --backend claude (K=1) still uses the single-bead tick path (only one bead per tick)', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'f9fox-serial-'));
   try {
