@@ -37,6 +37,7 @@ required=(
   "scripts/launch-driver.sh" "scripts/clock-in-dispatch.sh" "scripts/demo-shift.sh"
   "tests/run.sh" "tests/gate-test.sh" "tests/gate-cases.txt" "tests/smoke-shift.sh"
   "tests/launch-driver-test.sh" "tests/demo-shift-test.sh" "tests/shift-dashboard-test.sh"
+  "tests/check-version-consistency.sh" "tests/version-consistency-test.sh"
   "scripts/shift-dashboard.sh"
   "AGENTS.md" "CLAUDE.md" "README.md" "CONTRIBUTING.md" "CHANGELOG.md"
   "SECURITY.md" "CODE_OF_CONDUCT.md" "LICENSE" ".gitignore" "docs/INSTALL.md"
@@ -98,6 +99,16 @@ if [[ -d "$cxdir/skills" ]] && diff -r skills "$cxdir/skills" >/dev/null 2>&1; t
   ok "Codex plugin skills are in sync with canonical skills/"
 else
   bad "Codex plugin skills out of sync — run: rm -rf $cxdir/skills && cp -R skills $cxdir/skills"
+fi
+
+# ── 2c. Version consistency (manifests + README badge + CITATION must agree) ──
+# A release bump that misses a manifest is silent drift; this makes it loud (RED).
+head_ "version consistency"
+vc_out="$(bash "$ROOT/tests/version-consistency-test.sh" 2>&1)"; vc_rc=$?
+if [[ "$vc_rc" -eq 0 ]]; then
+  ok "$(printf '%s' "$vc_out" | tail -n1)"
+else
+  bad "version consistency regressed:"; printf '%s\n' "$vc_out" | sed 's/^/   /'
 fi
 
 # ── 3. Frontmatter (name + description) ──────────────────────────────────────
