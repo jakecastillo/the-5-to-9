@@ -99,10 +99,11 @@ emit_deny() {
   printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":%s}}\n' "$rq"
 }
 
-# Split on shell separators (&& || ; | &) and literal newlines so a keyword can't
-# leak across commands, then classify each segment independently. The heredoc
-# guarantees a trailing newline so `read` never drops the final segment.
-segments="$(printf '%s' "$cmd" | sed -E 's/(\|\||&&|;|\||&)/\n/g')"
+# Split on shell separators (&& || ; | &), command-substitution delimiters ($( ) and
+# backtick), and literal newlines so a keyword inside a substitution can't escape
+# classification. The heredoc guarantees a trailing newline so `read` never drops
+# the final segment.
+segments="$(printf '%s' "$cmd" | sed -E 's/(\$\(|`|\)|\|\||&&|;|\||&)/\n/g')"
 while IFS= read -r part; do
   [[ -n "$part" ]] || continue
   if seg_is_irreversible "$part"; then

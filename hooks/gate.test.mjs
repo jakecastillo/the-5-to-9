@@ -23,6 +23,13 @@ const DENY = [
   'aws secretsmanager rotate-secret --x', 'vault kv delete secret/x',
   'supabase db reset', 'dropdb prod', 'drop database prod',
   'git add -A && git commit -m x && npm publish', 'sudo wrangler deploy',
+  // command-substitution: irreversible verb INSIDE $(...) or backticks must be caught
+  'git push origin $(npm publish)',
+  'git push origin `npm publish`',
+  'x=$(terraform apply)',
+  'echo $(dropdb prod)',
+  'docker push img:$(git rev-parse --short HEAD)',
+  'gh release create v$(cat VERSION)',
 ];
 
 const ALLOW = [
@@ -36,6 +43,11 @@ const ALLOW = [
   'gcloud auth login && echo deploy-notes.txt', 'vercel link && npm run dev',
   'git push origin feature-deploy-button', 'bd ready --claim --json', 'ls -la',
   'docker build -t img .', 'kubectl get pods',
+  // benign substitutions: must NOT be over-blocked
+  'echo $(date)',
+  'ls $(pwd)',
+  'grep foo $(find . -name x)',
+  'VERSION=$(cat VERSION) && echo hi',
 ];
 
 for (const c of DENY) {

@@ -67,10 +67,13 @@ export function segmentIsIrreversible(seg) {
   return TOOL_RE.test(n);
 }
 
-// Split on shell separators (&& || ; | &) so a keyword can't leak across commands,
-// then classify each segment independently. Returns the flagged segment or null.
+// Split on shell separators (&& || ; | &) AND command-substitution delimiters
+// ($( ) and backtick) so a keyword inside a substitution can't escape classification.
+// Each resulting fragment is classified independently; the first irreversible one wins.
 export function firstDenySegment(cmd) {
-  for (const part of String(cmd).split(/\|\||&&|;|\||&/)) {
+  // First split on $( and backtick to expose substitution contents, then on ) to
+  // close each substitution scope, then on the usual shell separators.
+  for (const part of String(cmd).split(/\$\(|`|\)|\|\||&&|;|\||&/)) {
     if (segmentIsIrreversible(part)) return normalize(part);
   }
   return null;

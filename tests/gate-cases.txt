@@ -76,6 +76,14 @@ deny vault kv delete secret/x
 deny git add -A && git commit -m x && npm publish
 deny sudo wrangler deploy
 
+# ── must DENY: irreversible verb inside command substitution $(...) ───────────
+deny git push origin $(npm publish)
+deny git push origin `npm publish`
+deny x=$(terraform apply)
+deny echo $(dropdb prod)
+deny docker push img:$(git rev-parse --short HEAD)
+deny gh release create v$(cat VERSION)
+
 # ── must ALLOW: reversible shift work ────────────────────────────────────────
 allow git push origin the-5-to-9/shift-20260614
 allow git push -u origin HEAD
@@ -105,3 +113,9 @@ allow bd ready --claim --json
 allow ls -la
 allow docker build -t img .
 allow kubectl get pods
+
+# ── must ALLOW: benign command substitutions (no irreversible verb inside) ────
+allow echo $(date)
+allow ls $(pwd)
+allow grep foo $(find . -name x)
+allow VERSION=$(cat VERSION) && echo hi
