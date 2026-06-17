@@ -40,10 +40,11 @@ first. Never modify them. Instruction priority: target repo > The 5 to 9 > defau
 - **The Pit Boss** decomposes it into a dependency-ordered backlog (`blocks` /
   parent-child edges only where work must wait).
 
-## 4. Work the loop (capped)
+## 4. Work the loop (guarded)
 
-Run the service loop from the skill until `bd ready` is empty or the iteration cap is hit
-(default 30): `bd ready --claim` → Dealer implements one bead TDD → mechanical gate →
+Run the service loop from the skill. It is **uncapped by default** — it self-advances
+until `bd ready` is empty or progress stalls (an optional `--max-iterations N` adds a hard
+ceiling): `bd ready --claim` → Dealer implements one bead TDD → mechanical gate →
 Floor Auditor verifies independently → commit on the shift branch → `bd close` → repeat.
 
 Reversible work proceeds. **Stop at the gate** for any irreversible outward action

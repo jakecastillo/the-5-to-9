@@ -1,6 +1,6 @@
 ---
 name: the-5-to-9
-description: What The 5 to 9 is and how to use it — the crew, the commands, the two run engines, the safety gate, and where to read more. Start here.
+description: What The 5 to 9 is and how to use it — the crew, the commands, the run engines, the safety gate, and where to read more. Start here.
 allowed-tools: Read, Grep, Glob
 ---
 
@@ -30,11 +30,17 @@ irreversible actions. Funny on the surface, rigorous underneath.
 | The Eye in the Sky | security | `opus` |
 | The Floorman | devops / CI-CD | `haiku` |
 
-## Two ways to run
+## Ways to run
 
-- **Watched — `/clock-in`** (in-session): short shifts you babysit; context accumulates.
-- **Hands-off — `scripts/night-shift.sh --max-iterations N`**: the fresh-process loop, clean
-  context per iteration, no rot. Point it at a long backlog before bed.
+- **Watched — `/clock-in`** (in-session): the loop self-advances and runs continuously by
+  default until the backlog drains or a guard trips. Context accumulates, so babysit it.
+- **Hands-off — `scripts/night-shift.sh`**: the fresh-process loop, clean context per
+  iteration, no rot. `--max-iterations N` caps it; omit to run to empty/stall.
+- **SDK driver — `scripts/clock-in-dispatch.sh --driver`**: a deterministic TypeScript
+  runtime (K=1 on subscription backends; K≥2 needs `--backend api`).
+
+Watch any run read-only with `/shift-status` or the live TUI:
+`bash scripts/shift-dashboard.sh --watch`.
 
 ## Safety (small on purpose)
 

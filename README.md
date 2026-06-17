@@ -87,19 +87,28 @@ regenerate it yourself.
 
 ---
 
-## Two ways to run
+## Ways to run
 
 **1. Watched — `/clock-in`**
-In-session, you're at the wheel. Best for **short shifts**: context accumulates as the run goes, so this is the one to babysit.
+In-session, you're at the wheel. The loop **runs continuously by default** — it advances itself each turn until the backlog drains or a guard trips, no clock-out required. Context accumulates, so this is the one to babysit.
 
-**2. Hands-off — `scripts/night-shift.sh --max-iterations N`**
-An external **fresh-process** loop — the real night-shift engine. Each iteration starts with clean context (no rot), works one bead, and exits. This is what you point at a long backlog before you go to bed.
+**2. Hands-off — `scripts/night-shift.sh`**
+An external **fresh-process** loop — the real night-shift engine. Each iteration starts with clean context (no rot), works one bead, and exits. Point it at a long backlog before bed. Cap it with `--max-iterations N`, or omit to run until the backlog is empty or progress stalls.
 
 ```bash
 bash scripts/night-shift.sh --max-iterations 25
 ```
 
-Same crew, same gates, same beads backlog either way — the only difference is how long you want to leave it alone.
+**3. SDK driver — `scripts/clock-in-dispatch.sh --driver`**
+A deterministic TypeScript runtime (K=1 on subscription backends like Claude/Codex; K≥2 needs `--backend api`). Requires Node ≥ 20 and `pnpm install` in `driver/`.
+
+Same crew, same gates, same beads backlog every way — the difference is how long you leave it alone and which runtime drives.
+
+**Watch any run** read-only with `/shift-status`, or the live TUI dashboard:
+
+```bash
+bash scripts/shift-dashboard.sh --watch
+```
 
 ---
 

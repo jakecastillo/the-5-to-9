@@ -48,10 +48,11 @@ it into testable criteria and cuts gold-plating. The Pit Boss builds the bead gr
 epics → features → tasks, wired with real `blocks` / parent-child edges (only those gate
 `bd ready`; `discovered-from` is provenance, not a blocker).
 
-## The service loop (cap it — always)
+## The service loop (always guarded)
 
-A dumb, honest heartbeat over a smart backlog. Repeat until `bd ready` is empty or the
-iteration cap is hit (default **30**):
+A dumb, honest heartbeat over a smart backlog. Repeat until `bd ready` is empty, progress
+stalls, or an **optional** iteration cap (`--max-iterations N`) is hit — the loop is
+**uncapped by default** and self-advances to empty/stall (see the guards below):
 
 1. **Claim** atomically: `bd ready --claim --json`. No two workers grab the same bead.
 2. **Plan** (Pit Boss) → **confirm scope** with the Owner if fuzzy.
@@ -109,14 +110,20 @@ Never modify the target repo's `CLAUDE.md` / `AGENTS.md`. Inject context additiv
 skills) and obey the repo's existing guardrails first. **Instruction priority: target repo
 > The 5 to 9 > defaults.** If the repo says "no TDD," the crew obeys the repo.
 
-## Two run engines
+## Run engines
 
-- **Watched — `/clock-in`** (in-session). Context accumulates, so it's for **short** shifts
-  you babysit.
-- **Hands-off — `scripts/night-shift.sh --max-iterations N`** (external **fresh-process**
-  loop). Each iteration starts with clean context, works one bead, exits. No context rot.
-  This is the real night-shift engine for a long backlog. Never run both loops on the same
-  goal at once.
+- **Watched — `/clock-in`** (in-session). Self-advances and runs continuously until the
+  backlog drains or a guard trips. Context accumulates, so it's the one you babysit.
+- **Hands-off — `scripts/night-shift.sh`** (external **fresh-process** loop). Each
+  iteration starts with clean context, works one bead, exits. No context rot — the real
+  night-shift engine for a long backlog. `--max-iterations N` caps it; omit to run to
+  empty/stall.
+- **SDK driver — `scripts/clock-in-dispatch.sh --driver`** (deterministic TypeScript
+  runtime). K=1 on subscription backends; K≥2 requires `--backend api`. The dispatch
+  script is the only junction — the bash loop and the driver never share code.
+
+Never run two engines on the same goal at once. Watch any run read-only with
+`/shift-status` or the live TUI: `bash scripts/shift-dashboard.sh --watch`.
 
 ## Clock out
 

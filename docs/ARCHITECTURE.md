@@ -56,8 +56,8 @@ flowchart TB
 
 ## The service loop (one shift)
 
-`/clock-in` once; the loop repeats until the backlog drains, the iteration cap is hit,
-or progress stalls. **Reads fan out in parallel; writes serialize** through the Cage.
+`/clock-in` once; the loop self-advances until the backlog drains, progress stalls, or an
+optional iteration cap is hit. **Reads fan out in parallel; writes serialize** through the Cage.
 
 ```mermaid
 flowchart LR
@@ -77,10 +77,12 @@ flowchart LR
     D -- "yes" --> L(["/clock-out — shift report"])
 ```
 
-Two guards keep the loop honest and bounded: an **iteration cap** (default 30, never
-uncapped) and a **no-progress stall** check (stop if the closed-bead count doesn't move
-for N iterations). Long hands-off runs use a **fresh process per iteration** so context
-never rots (see [run engines](#cross-tool-portability--two-run-engines)).
+Two guards keep the loop honest: a **no-progress stall** check (stop if the closed-bead
+count doesn't move for N iterations) and **QUEUE-EMPTY** (stop when `bd ready` drains).
+The loop is **uncapped by default** — it advances itself and runs to empty or stall, no
+clock-out required — while an explicit **iteration cap** (`--max-iterations N`) stays
+available when you want a hard ceiling. Long hands-off runs use a **fresh process per
+iteration** so context never rots (see [run engines](#cross-tool-portability--run-engines)).
 
 ---
 
@@ -104,7 +106,7 @@ and instruction priority is **your repo > The 5 to 9 > defaults**.
 
 ---
 
-## Cross-tool portability + two run engines
+## Cross-tool portability + run engines
 
 The 5 to 9 ships as a Claude Code plugin, but over a deliberately **portable core**. The
 brain (`AGENTS.md`), the protocol (`skills/`), the loop (`scripts/` + `hooks/`, POSIX
@@ -128,9 +130,10 @@ flowchart TB
         OT["other AGENTS.md-aware agents — phase-2"]
     end
 
-    subgraph Engines["two ways to run"]
-        W["watched — /clock-in (in-session, babysit short shifts)"]
-        H["hands-off — scripts/night-shift.sh (fresh process per iteration, capped)"]
+    subgraph Engines["run engines"]
+        W["watched — /clock-in (in-session, self-advancing, babysit)"]
+        H["hands-off — scripts/night-shift.sh (fresh process per iteration)"]
+        D["SDK driver — clock-in-dispatch.sh --driver (deterministic TS runtime)"]
     end
 
     Core --> CC
@@ -138,13 +141,23 @@ flowchart TB
     Core --> OT
     CC --> W
     CC --> H
+    CC --> D
     CX --> H
 ```
 
-**Watched** (`/clock-in`) runs in-session — best for short shifts you babysit, since
-context accumulates. **Hands-off** (`scripts/night-shift.sh --max-iterations N`) is the
-real night-shift engine: each iteration starts a fresh agent process with clean context,
-works one bead, and exits — no context rot over a long backlog.
+Three ways to drive the same crew, gates, and beads backlog:
+
+- **Watched** (`/clock-in`) runs in-session and **advances itself** until the backlog
+  drains or a guard trips — best for shifts you babysit, since context accumulates.
+- **Hands-off** (`scripts/night-shift.sh`) is the real night-shift engine: each iteration
+  starts a fresh agent process with clean context, works one bead, and exits — no context
+  rot over a long backlog. `--max-iterations N` caps it; omit to run to empty/stall.
+- **SDK driver** (`scripts/clock-in-dispatch.sh --driver`) is a deterministic TypeScript
+  runtime (K=1 on subscription backends; K≥2 needs `--backend api`). The dispatch script
+  is the only junction — the bash loop and the driver never share code.
+
+Watch any run read-only with `/shift-status` or the live TUI:
+`bash scripts/shift-dashboard.sh --watch`.
 
 ---
 
