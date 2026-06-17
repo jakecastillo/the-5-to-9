@@ -21,7 +21,12 @@ f9_export_beads_dir
 state_dir="$(f9_state_dir)"
 
 max_iter="$(f9_state_get max_iterations 2>/dev/null)"
-[[ "$max_iter" =~ ^[0-9]+$ ]] || max_iter="${FIVE_TO_NINE_MAX_ITER:-30}"
+# A positive integer caps iterations; uncapped/none/0/empty = no ceiling (QUEUE-EMPTY +
+# no-progress below still stop the loop). Non-numeric junk falls back to a safe default.
+case "$max_iter" in
+  uncapped|none|0|"") max_iter="" ;;
+  *[!0-9]*)           max_iter="${FIVE_TO_NINE_MAX_ITER:-30}" ;;
+esac
 
 iter="$(cat "$state_dir/iteration.count" 2>/dev/null || echo 0)"
 [[ "$iter" =~ ^[0-9]+$ ]] || iter=0
@@ -43,8 +48,8 @@ block() {
   exit 0
 }
 
-# Hard cap.
-if (( iter > max_iter )); then
+# Hard cap (skipped when uncapped — the drain + no-progress guards below still apply).
+if [[ -n "$max_iter" ]] && (( iter > max_iter )); then
   f9_warn "iteration cap reached (${max_iter}) — clocking out the loop"
   allow_stop
 fi
@@ -74,4 +79,4 @@ if [[ -n "$closed" ]]; then
 fi
 
 goal="$(f9_state_get goal 2>/dev/null)"
-block "Advance The 5 to 9 shift (iteration ${iter}/${max_iter}). Per the running-the-shift skill (first ground in THIS repo's AGENTS.md/README + guardrails and obey them — repo wins over defaults): claim the next ready bead (bd ready --claim), implement it TDD as the Dealer, run the repo's real mechanical gate (no green, no close), have the Floor Auditor verify independently against acceptance, commit on the shift branch, then bd close and note why in beads. ${ready} bead(s) ready. Goal: ${goal}. Stop only when bd ready is empty or you hit the cap; hard-stop and surface (never perform) any irreversible outward action."
+block "Advance The 5 to 9 shift (iteration ${iter}/${max_iter:-∞}). Per the running-the-shift skill (first ground in THIS repo's AGENTS.md/README + guardrails and obey them — repo wins over defaults): claim the next ready bead (bd ready --claim), implement it TDD as the Dealer, run the repo's real mechanical gate (no green, no close), have the Floor Auditor verify independently against acceptance, commit on the shift branch, then bd close and note why in beads. ${ready} bead(s) ready. Goal: ${goal}. Stop only when bd ready is empty or you hit the cap; hard-stop and surface (never perform) any irreversible outward action."

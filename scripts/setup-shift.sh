@@ -40,7 +40,7 @@ state_dir="$(f9_state_dir)"
 mkdir -p "$state_dir" || { f9_err "cannot create state dir: $state_dir"; exit 1; }
 
 started="$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo unknown)"
-max_iter="${FIVE_TO_NINE_MAX_ITER:-30}"
+max_iter="${FIVE_TO_NINE_MAX_ITER:-uncapped}"   # default: continuous in-session loop (drain + no-progress still stop it); set a number to cap
 
 # --- dedicated shift branch (reversible; never main/prod) ---------------------
 branch="(current)"
@@ -81,5 +81,5 @@ rm -f "$state_dir/closed.snapshot" 2>/dev/null || true
 f9_bd_ensure_init || true
 
 f9_log "clocked in — goal: $goal"
-f9_log "branch: $branch · state: $state_file · cap: $max_iter iterations"
-echo "Shift open. Goal recorded. Branch: $branch. Cap: $max_iter iterations."
+f9_log "branch: $branch · state: $state_file · iterations: $max_iter (drain + no-progress guarded)"
+echo "Shift open. Goal recorded. Branch: $branch. Iterations: $max_iter (uncapped = runs continuously until the backlog drains or progress stalls)."

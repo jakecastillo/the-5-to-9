@@ -53,6 +53,26 @@ if command -v bd >/dev/null 2>&1; then
     && ok "Stop hook blocks (advances the loop) with ready work" \
     || no "Stop hook should block with ready work"
 
+  # 3b. uncapped: the in-session loop keeps blocking past any normal ceiling.
+  state_dir="$(dirname "$state")"; rm -f "$state_dir/closed.snapshot"
+  sed -i.bak 's/^max_iterations: .*/max_iterations: uncapped/' "$state"; rm -f "$state.bak"
+  printf '99\n' > "$state_dir/iteration.count"
+  unc="$(printf '{}' | bash "$ROOT/hooks/shift-loop.sh" 2>/dev/null)"
+  printf '%s' "$unc" | grep -q '"decision":"block"' \
+    && ok "uncapped loop keeps blocking past iter 99 (no ceiling)" \
+    || no "uncapped loop should keep blocking past any cap (got: $unc)"
+
+  # 3c. a numeric cap still stops the loop.
+  rm -f "$state_dir/closed.snapshot"
+  sed -i.bak 's/^max_iterations: .*/max_iterations: 2/' "$state"; rm -f "$state.bak"
+  printf '5\n' > "$state_dir/iteration.count"
+  cap="$(printf '{}' | bash "$ROOT/hooks/shift-loop.sh" 2>/dev/null)"
+  [[ -z "$cap" ]] && ok "numeric cap (2) still stops the loop at iter 6" \
+                  || no "numeric cap should stop the loop (got: $cap)"
+  # restore uncapped + reset counters for the drain test below
+  sed -i.bak 's/^max_iterations: .*/max_iterations: uncapped/' "$state"; rm -f "$state.bak"
+  printf '0\n' > "$state_dir/iteration.count"; rm -f "$state_dir/closed.snapshot"
+
   # 4. a scripted cook drains the backlog through night-shift.sh.
   export FIVE_TO_NINE_AGENT_CMD='id=$(bd ready --claim --json 2>/dev/null | jq -r ".[0].id // empty"); [ -n "$id" ] && bd close "$id" >/dev/null 2>&1'
   ( cd "$TMP" && bash "$ROOT/scripts/night-shift.sh" --max-iterations 12 ) >"$TMP/ns.log" 2>&1 || true
