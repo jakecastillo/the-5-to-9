@@ -43,8 +43,10 @@ serialize through beads; true parallel subagents are phase-2.
 
 - **Claude CLI** — `claude --plugin-dir "$PWD"` (dev) or `claude plugin install
 the-5-to-9@the-5-to-9` (persistent), then `/clock-in`. See [INSTALL.md](INSTALL.md).
-- **Claude App** — same marketplace install; the plugin should appear after a reload.
-  (Verification pending — `phu.6`.)
+- **Claude App (desktop/web)** — Claude Code shares one plugin config (`~/.claude`) across
+  the CLI, desktop, and web apps, so the marketplace install above surfaces in the app too;
+  open the app (or reload) and `/clock-in` appears under `/`. Live in-app verification is
+  deferred (`phu.6` — it needs the desktop/web app open, which the autonomous loop can't do).
 - **Codex CLI** — today: set full-auto in `~/.codex/config.toml` and paste
   `codex/prompts/clock-in.md`; the portable core runs the shift. Native `codex plugin
 add` is pending `ap8`.
