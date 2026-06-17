@@ -120,6 +120,24 @@ else
   no "clock-in-dispatch.sh fails bash -n"
 fi
 
+# ── Test 5: -h/--help prints dispatch's own usage and invokes NEITHER engine ──
+# The dispatch script is a documented entrypoint; its --help must describe the
+# routing (--driver/--backend), not silently forward --help to one of the engines.
+for hflag in --help -h; do
+  : > "$INVOKED"
+  help_out="$(cd "$stub_root" && bash scripts/clock-in-dispatch.sh "$hflag" 2>&1)"; help_rc=$?
+  invoked_val="$(cat "$INVOKED" 2>/dev/null || true)"
+  if [[ "$help_rc" -eq 0 ]] \
+     && printf '%s' "$help_out" | grep -qi 'usage' \
+     && printf '%s' "$help_out" | grep -q '\-\-driver' \
+     && printf '%s' "$help_out" | grep -q '\-\-backend' \
+     && [[ -z "$invoked_val" ]]; then
+    ok "$hflag prints dispatch usage (--driver/--backend) without invoking an engine"
+  else
+    no "$hflag did not print dispatch usage cleanly (rc=$help_rc, invoked='${invoked_val}')"
+  fi
+done
+
 if [[ "$fail" -eq 0 ]]; then
   echo "launch-driver-test: GREEN"
   exit 0
