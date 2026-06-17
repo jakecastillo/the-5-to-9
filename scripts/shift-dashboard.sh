@@ -235,7 +235,18 @@ f9_dash_status_panel() {
     gate_rest="${gate_line#* }"             # remainder: "<n> <ts>"
     gate_n="${gate_rest%% *}"              # second word: group count
     gate_ts="${gate_rest#* }"              # third word: timestamp
-    printf '  gate: %s (%s groups) — %s\n' "$gate_color" "$gate_n" "$gate_ts"
+    # Validate: gate_color must be GREEN or RED, gate_n must be a non-negative
+    # integer, and the line must have had at least 3 space-separated tokens
+    # (gate_rest must differ from gate_n, i.e. a timestamp token exists).
+    # A single-token or empty file causes %% and # to return the whole string,
+    # producing garbage like "GREEN (GREEN groups) — GREEN"; reject those.
+    if [[ "$gate_color" =~ ^(GREEN|RED)$ ]] \
+       && [[ "$gate_n" =~ ^[0-9]+$ ]] \
+       && [[ "$gate_rest" != "$gate_n" ]]; then
+      printf '  gate: %s (%s groups) — %s\n' "$gate_color" "$gate_n" "$gate_ts"
+    else
+      printf '  gate: n/a\n'
+    fi
   else
     printf '  gate: n/a\n'
   fi

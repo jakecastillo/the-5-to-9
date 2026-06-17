@@ -123,5 +123,5 @@ f9_json_string() {
 # Count of currently-ready (claimable) issues for the active goal.
 f9_ready_count() {
   f9_have_beads || { printf '0\n'; return 1; }
-  bd ready --json 2>/dev/null | { f9_have jq && jq 'length' || grep -c '"id"'; }
+  bd ready --json 2>/dev/null | { f9_have jq && jq 'length' || { grep -o '"id"' || true; } | grep -c .; }
 }

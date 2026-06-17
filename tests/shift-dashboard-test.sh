@@ -461,6 +461,91 @@ printf '%s' "$no_gate_out" | grep -qi 'gate.*n/a\|n/a.*gate' \
   && ok "status panel shows 'gate: n/a' when marker absent" \
   || no "status panel missing 'gate: n/a' when marker absent (got: $no_gate_out)"
 
+# ── 29. status panel: gate: n/a for malformed/empty last-gate.txt ────────────
+# A file that exists but is empty or has <3 tokens must render "gate: n/a",
+# not garbage like "gate: GREEN (GREEN groups) — GREEN" or "gate:  ( groups) — ".
+# (Acceptance: bead the-5-to-9-5i5 — validate gate_color and gate_n after parse.)
+
+mkdir -p "$TMP/malformed/.claude/five-to-nine"
+cat >"$TMP/malformed/.claude/five-to-nine/shift.local.md" <<'MALEOF'
+---
+goal: "Malformed gate test"
+branch: feat/malformed-gate
+started: 2026-06-16T00:00:00Z
+engine: in-session
+status: active
+max_iterations: 5
+---
+Malformed gate test
+MALEOF
+
+# Case A: empty file
+printf '' >"$TMP/malformed/.claude/five-to-nine/last-gate.txt"
+malformed_empty_out="$(CLAUDE_PROJECT_DIR="$TMP/malformed" bash -c ". '$ROOT/scripts/shift-dashboard.sh' --source-only 2>/dev/null; f9_dash_status_panel" 2>&1)"
+printf '%s' "$malformed_empty_out" | grep -qi 'gate.*n/a\|n/a.*gate' \
+  && ok "gate: empty last-gate.txt renders 'gate: n/a'" \
+  || no "gate: empty last-gate.txt did not render 'gate: n/a' (got: $malformed_empty_out)"
+# Must NOT produce garbage (no bare "groups)" without real number)
+printf '%s' "$malformed_empty_out" | grep -q '( groups)' \
+  && no "gate: empty file produced garbage output containing '( groups)'" \
+  || ok "gate: empty file has no garbage '( groups)' fragment"
+
+# Case B: single token "GREEN" (no space → %% and # return whole string)
+printf 'GREEN\n' >"$TMP/malformed/.claude/five-to-nine/last-gate.txt"
+malformed_one_out="$(CLAUDE_PROJECT_DIR="$TMP/malformed" bash -c ". '$ROOT/scripts/shift-dashboard.sh' --source-only 2>/dev/null; f9_dash_status_panel" 2>&1)"
+printf '%s' "$malformed_one_out" | grep -qi 'gate.*n/a\|n/a.*gate' \
+  && ok "gate: single-token 'GREEN' renders 'gate: n/a'" \
+  || no "gate: single-token 'GREEN' did not render 'gate: n/a' (got: $malformed_one_out)"
+# Must NOT produce "GREEN (GREEN groups) — GREEN" garbage
+printf '%s' "$malformed_one_out" | grep -qE 'GREEN.*GREEN.*groups|GREEN groups' \
+  && no "gate: single-token file produced garbage (GREEN groups seen)" \
+  || ok "gate: single-token file has no 'GREEN groups' garbage"
+
+# Case C: two tokens "GREEN 18" (count present, timestamp missing → gate_ts == gate_n)
+printf 'GREEN 18\n' >"$TMP/malformed/.claude/five-to-nine/last-gate.txt"
+malformed_two_out="$(CLAUDE_PROJECT_DIR="$TMP/malformed" bash -c ". '$ROOT/scripts/shift-dashboard.sh' --source-only 2>/dev/null; f9_dash_status_panel" 2>&1)"
+printf '%s' "$malformed_two_out" | grep -qi 'gate.*n/a\|n/a.*gate' \
+  && ok "gate: two-token 'GREEN 18' renders 'gate: n/a'" \
+  || no "gate: two-token 'GREEN 18' did not render 'gate: n/a' (got: $malformed_two_out)"
+
+# Case D: well-formed line still renders correctly (regression guard)
+gate_ts_wf="2026-06-16T12:34:56Z"
+printf 'RED 7 %s\n' "$gate_ts_wf" >"$TMP/malformed/.claude/five-to-nine/last-gate.txt"
+malformed_good_out="$(CLAUDE_PROJECT_DIR="$TMP/malformed" bash -c ". '$ROOT/scripts/shift-dashboard.sh' --source-only 2>/dev/null; f9_dash_status_panel" 2>&1)"
+printf '%s' "$malformed_good_out" | grep -qiE 'gate.*RED|RED.*gate' \
+  && ok "gate: well-formed RED marker still renders gate: RED" \
+  || no "gate: well-formed RED marker failed to render (got: $malformed_good_out)"
+printf '%s' "$malformed_good_out" | grep -q '7' \
+  && ok "gate: well-formed RED marker includes group count 7" \
+  || no "gate: well-formed RED marker missing group count 7 (got: $malformed_good_out)"
+
+# ── 30. f9_ready_count no-jq branch: counts occurrences, not lines ───────────
+# bd emits the ready array on ONE line; grep -c matches lines (1 for any
+# non-empty input), but there are 2 ready beads.  The fix must return 2.
+# We hide jq from PATH so f9_ready_count falls through to the grep branch.
+mkdir -p "$TMP/nojq"
+# Provide a stub jq that exits non-zero so f9_have jq returns false.
+printf '#!/usr/bin/env bash\nexit 1\n' >"$TMP/nojq/jq"
+chmod +x "$TMP/nojq/jq" 2>/dev/null || true
+# Source common.sh with the stub bd on PATH (stub bd is already in $TMP/bin).
+# Use a PATH that puts the failing jq first and keeps the real bd stub.
+nojq_count="$(PATH="$TMP/nojq:$TMP/bin:/bin:/usr/bin" \
+  bash -c ". '$ROOT/scripts/lib/common.sh'; f9_ready_count" 2>/dev/null)"
+[[ "$nojq_count" -eq 2 ]] \
+  && ok "f9_ready_count no-jq branch returns 2 for 2-element single-line array" \
+  || no "f9_ready_count no-jq branch returned '$nojq_count' (expected 2; grep -c line-count bug?)"
+
+# Edge case: empty array → 0.
+# Temporarily override the bd stub to return [].
+mkdir -p "$TMP/emptybd"
+printf '#!/usr/bin/env bash\nprintf "[]\n"\n' >"$TMP/emptybd/bd"
+chmod +x "$TMP/emptybd/bd" 2>/dev/null || true
+nojq_empty="$(PATH="$TMP/nojq:$TMP/emptybd:/bin:/usr/bin" \
+  bash -c ". '$ROOT/scripts/lib/common.sh'; f9_ready_count" 2>/dev/null)"
+[[ "$nojq_empty" -eq 0 ]] \
+  && ok "f9_ready_count no-jq branch returns 0 for empty array []" \
+  || no "f9_ready_count no-jq branch returned '$nojq_empty' for [] (expected 0)"
+
 if [[ "$fail" -eq 0 ]]; then
   echo "shift-dashboard-test: GREEN"
   exit 0
