@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, test } from 'vitest';
 import type { BeadLite, BeadsRead } from '../beads-read.ts';
+import { requestConsent } from '../consent.ts';
 import { getDashboardModel } from './dashboard-model.ts';
 import { status } from './status.ts';
 
@@ -45,6 +46,28 @@ test('getDashboardModel() returns counts, progress, and the three bead arrays', 
   // total = closed(5) + ready(2) + inProgress(1) + blocked(1) = 9.
   // pct mirrors the bash dashboard's integer division: (5*100)/9 = 55.
   expect(model.progress).toEqual({ closed: 5, total: 9, pct: 55 });
+});
+
+test('getDashboardModel() with no pending consent → pendingGate is undefined', async () => {
+  const model = await getDashboardModel({ beads: stubBeads(), stateDir: emptyStateDir() });
+  expect(model.pendingGate).toBeUndefined();
+});
+
+test('getDashboardModel() surfaces a pending consent as pendingGate', async () => {
+  const dir = emptyStateDir();
+  const p = requestConsent(
+    { command: 'gh release create v1', category: 'publish', beadId: 't59-7e0', role: 'Cage' },
+    { stateDir: dir },
+  );
+  const model = await getDashboardModel({ beads: stubBeads(), stateDir: dir });
+  expect(model.pendingGate).toBeDefined();
+  expect(model.pendingGate?.id).toBe(p.id);
+  expect(model.pendingGate?.command).toBe('gh release create v1');
+  expect(model.pendingGate?.segment).toBe('gh release create v1');
+  expect(model.pendingGate?.category).toBe('publish');
+  expect(model.pendingGate?.token).toBe(p.token);
+  expect(model.pendingGate?.bead).toBe('t59-7e0');
+  expect(model.pendingGate?.role).toBe('Cage');
 });
 
 test('getDashboardModel() with zero work → pct 0, no divide-by-zero', async () => {
