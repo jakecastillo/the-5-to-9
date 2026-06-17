@@ -27,9 +27,9 @@ goal=""
 dry_run=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --max-iterations|-n) max_iter="${2:-}"; shift 2 || true;;
+    --max-iterations|-n) max_iter="${2:-}"; shift 2 2>/dev/null || shift;;
     --max-iterations=*)  max_iter="${1#*=}"; shift;;
-    --goal|-g)           goal="${2:-}"; shift 2 || true;;
+    --goal|-g)           goal="${2:-}"; shift 2 2>/dev/null || shift;;
     --goal=*)            goal="${1#*=}"; shift;;
     --dry-run)           dry_run=1; shift;;
     -h|--help)           grep -E '^#( |$)' "$F9_HERE/night-shift.sh" | sed 's/^# \{0,1\}//' >&2; exit 0;;

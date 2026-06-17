@@ -132,6 +132,83 @@ grep -q 'failed after escalation' <<<"$stuck_out" \
   && ok "stuck bead surfaces after the escalated retry fails" \
   || no "stuck bead did not surface after the escalated retry failed"
 
+# --- shift-2-atomicity regression (bead the-5-to-9-p8b) ---
+# When a valued flag (--max-iterations / --goal) is the LAST token with no value,
+# the old 'shift 2 || true' left $# stuck → busy-spin in the arg-parsing while loop.
+# We test the arg-parsing loop directly by sourcing a minimal extraction of it.
+
+p8b_parse() {
+  # Replicate only the arg-parsing while-loop from night-shift.sh (no i/o side effects).
+  local max_iter="" goal="" dry_run=0
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --max-iterations|-n) max_iter="${2:-}"; shift 2 2>/dev/null || shift;;
+      --max-iterations=*)  max_iter="${1#*=}"; shift;;
+      --goal|-g)           goal="${2:-}"; shift 2 2>/dev/null || shift;;
+      --goal=*)            goal="${1#*=}"; shift;;
+      --dry-run)           dry_run=1; shift;;
+      *)                   shift;;
+    esac
+  done
+  printf 'max_iter=%s goal=%s dry_run=%s remaining=%d\n' "$max_iter" "$goal" "$dry_run" "$#"
+}
+
+out="$(p8b_parse --max-iterations)"
+printf '%s' "$out" | grep -q 'remaining=0' \
+  && ok "trailing valueless --max-iterations: arg-parsing loop terminates (no busy-spin)" \
+  || no "trailing valueless --max-iterations: arg-parsing loop stuck (busy-spin bug)"
+
+out="$(p8b_parse --goal)"
+printf '%s' "$out" | grep -q 'remaining=0' \
+  && ok "trailing valueless --goal: arg-parsing loop terminates (no busy-spin)" \
+  || no "trailing valueless --goal: arg-parsing loop stuck (busy-spin bug)"
+
+# Also run the full script with --dry-run + stubbed bd + trailing valueless flag to
+# confirm it actually exits quickly (no busy-spin in the real binary).
+run_capped() {
+  # Runs night-shift.sh in background; kills after 5s if still alive (hang = fail).
+  local script="$1"; shift
+  bash "$script" "$@" 2>/dev/null &
+  local pid=$!
+  local elapsed=0
+  while kill -0 "$pid" 2>/dev/null && (( elapsed < 50 )); do
+    sleep 0.1
+    elapsed=$(( elapsed + 1 ))
+  done
+  if kill -0 "$pid" 2>/dev/null; then
+    kill -9 "$pid" 2>/dev/null || true
+    wait "$pid" 2>/dev/null || true
+    return 124  # timed out = busy-spin
+  fi
+  wait "$pid" 2>/dev/null || true
+  return 0
+}
+
+# With --dry-run and QUEUE-EMPTY (empty bd stub), the loop stops immediately.
+# Override the global stub env vars so bd reports an empty queue.
+(
+  export F9_BD_READY_JSON='[]'
+  export F9_BD_OPEN_COUNT=0
+  run_capped "$ROOT/scripts/night-shift.sh" --dry-run --max-iterations
+) && ok "full binary: trailing valueless --max-iterations + dry-run exits promptly" \
+  || no "full binary: trailing valueless --max-iterations + dry-run hung"
+
+(
+  export F9_BD_READY_JSON='[]'
+  export F9_BD_OPEN_COUNT=0
+  run_capped "$ROOT/scripts/night-shift.sh" --dry-run --goal
+) && ok "full binary: trailing valueless --goal + dry-run exits promptly" \
+  || no "full binary: trailing valueless --goal + dry-run hung"
+
+# Normal two-argument form must still parse and run (regression guard).
+twoarg_out="$(
+  FIVE_TO_NINE_AGENT_CMD='exit 0' \
+  bash "$ROOT/scripts/night-shift.sh" --max-iterations 1 --dry-run 2>&1 || true
+)"
+printf '%s' "$twoarg_out" | grep -q 'iteration(s)' \
+  && ok "--max-iterations N (two-arg form) still works after fix" \
+  || no "--max-iterations N (two-arg form) broken after shift fix"
+
 if [[ "$fail" -eq 0 ]]; then
   echo "night-shift-test: GREEN"
   exit 0
