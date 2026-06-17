@@ -95,7 +95,9 @@ else
   note "jq not found — skipping Codex manifest checks (CI installs jq)"
 fi
 # Skills inside the subdir must match canonical skills/ byte-for-byte (no drift).
-if [[ -d "$cxdir/skills" ]] && diff -r skills "$cxdir/skills" >/dev/null 2>&1; then
+# Exclude .DS_Store: a macOS Finder artifact (gitignored, never committed) must not
+# flake this raw dir-vs-dir comparison.
+if [[ -d "$cxdir/skills" ]] && diff -r -x '.DS_Store' skills "$cxdir/skills" >/dev/null 2>&1; then
   ok "Codex plugin skills are in sync with canonical skills/"
 else
   bad "Codex plugin skills out of sync — run: rm -rf $cxdir/skills && cp -R skills $cxdir/skills"
