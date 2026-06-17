@@ -184,6 +184,14 @@ export async function main(
       mechanicalGate: async () => ({ green: true }), // TODO: wire real gate (Slice 3)
       k: cfg.concurrency,
       baseBranch: 'main',
+      // Phase 1c (bead 128): the K>=2 tick gates a surfaced outward action IDENTICALLY
+      // to K=1 — the SAME consent contract + single perform site (shared runGate). Any
+      // deny/timeout/error (or an indeterminate resume) leaves the bead open (default-deny).
+      exec,
+      stateDir,
+      now: opts.now,
+      consentTimeoutMs: opts.consentTimeoutMs,
+      consentPollMs: opts.consentPollMs,
     };
     tick = async (_iteration: number) => runParallelTick(parallelDeps);
   } else {

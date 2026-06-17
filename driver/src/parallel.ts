@@ -1,7 +1,7 @@
 import type { WorkerAdapter } from './adapters/adapter.ts';
 import type { Beads } from './beads.ts';
 import { independentFrontier } from './frontier.ts';
-import type { Journal } from './journal.ts';
+import { type GateConsentDeps, runGate } from './gate-consent.ts';
 import type { TickOutcome } from './loop.ts';
 import type { BudgetLedger, RunLog } from './observability.ts';
 import { validateWorkerOutcome } from './schema.ts';
@@ -9,10 +9,14 @@ import type { Bead } from './types.ts';
 import { specFor } from './worker-spec.ts';
 import type { Worktrees } from './worktree.ts';
 
-export interface ParallelTickDeps {
+/**
+ * The parallel-tick deps. Extends GateConsentDeps so the K>=2 path wires the SAME
+ * interactive consent gate fields the K=1 path uses; both call the shared `runGate`
+ * (gate-consent.ts) — one consent contract, one perform site, no duplicated logic.
+ */
+export interface ParallelTickDeps extends GateConsentDeps {
   beads: Beads;
   worktrees: Worktrees;
-  journal: Journal;
   log: RunLog;
   ledger: BudgetLedger;
   dealer: WorkerAdapter;
@@ -54,6 +58,23 @@ export async function runParallelTick(d: ParallelTickDeps): Promise<TickOutcome>
       try {
         const dealerOut = await d.dealer.run(specFor(bead, 'dealer', worktree));
         d.ledger.add(dealerOut.costUsd);
+
+        // ── Consent gate + perform-on-approve (Phase 1c) ───────────────────────
+        // IDENTICAL to the K=1 path: the SAME shared runGate (gate-consent.ts) is
+        // the single perform site. A surfaced+flagged outward action is gated before
+        // the mechanical gate; on deny/timeout/throw — or an indeterminate resume —
+        // the bead degrades to ok:false so Phase 2 leaves it OPEN (never closed).
+        // The command runs in THIS bead's own worktree, exactly as the K=1 path does.
+        const gateOutcome = await runGate(d, bead.id, dealerOut.requestedAction, worktree);
+        if (gateOutcome !== 'proceed') {
+          return {
+            bead,
+            branch,
+            worktree,
+            ok: false,
+            reason: gateOutcome === 'indeterminate' ? 'gate-indeterminate' : 'gate-denied',
+          };
+        }
 
         const gate = await d.mechanicalGate(worktree);
         if (!gate.green) return { bead, branch, worktree, ok: false, reason: 'gate-red' };
