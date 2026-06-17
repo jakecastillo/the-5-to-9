@@ -279,6 +279,21 @@ else
   note "no driver/ — skipped"
 fi
 
+# ── 5f.2 cli/ TypeScript checks (typecheck + lint + tests; skipped if toolchain absent) ─
+head_ "cli (the-5-to-9 CLI/TUI)"
+if [[ -d "$ROOT/cli" ]] && have node && have pnpm; then
+  cli_out="$(cd "$ROOT/cli" && pnpm install --frozen-lockfile >/dev/null 2>&1 && pnpm run typecheck 2>&1 && pnpm run lint 2>&1 && pnpm test 2>&1)"; cli_rc=$?
+  if [[ "$cli_rc" -eq 0 ]]; then
+    ok "cli typecheck + lint + tests passed"
+  else
+    bad "cli checks failed:"; printf '%s\n' "$cli_out" | tail -n 20 | sed 's/^/   /'
+  fi
+elif [[ -d "$ROOT/cli" ]]; then
+  note "cli/ present but node/pnpm absent — skipped (CI installs them)"
+else
+  note "no cli/ — skipped"
+fi
+
 # ── 5g. clock-in-dispatch routing (--driver flag → SDK driver; absent → bash loop) ──
 head_ "clock-in-dispatch routing"
 ld_out="$(bash "$ROOT/tests/launch-driver-test.sh" 2>&1)"; ld_rc=$?

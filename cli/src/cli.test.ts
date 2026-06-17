@@ -1,0 +1,84 @@
+import { existsSync, mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { expect, test } from 'vitest';
+import type { BeadsRead } from './beads-read.ts';
+import { type CliDeps, runCli } from './cli.ts';
+
+function capture() {
+  const out: string[] = [];
+  const err: string[] = [];
+  return {
+    io: { out: (s: string) => out.push(s), err: (s: string) => err.push(s) },
+    out: () => out.join(''),
+    err: () => err.join(''),
+  };
+}
+
+function stubBeads(): BeadsRead {
+  return {
+    available: () => true,
+    ready: () => Promise.resolve([{ id: 'r1', title: 'Ready one' }]),
+    list: () => Promise.resolve([]),
+    count: (s) => Promise.resolve(s === 'closed' ? 5 : 0),
+    readyCount: () => Promise.resolve(1),
+  };
+}
+
+function deps(repo: string): CliDeps {
+  return {
+    beads: stubBeads(),
+    stateDir: join(repo, '.claude', 'five-to-nine'),
+    cwd: repo,
+  };
+}
+
+test('status prints goal/branch/iteration/gate + counts, returns 0', async () => {
+  const repo = mkdtempSync(join(tmpdir(), 'f9-cli-'));
+  const c = capture();
+  // open a shift first (no branch — temp dir is not a repo)
+  await runCli(['clock-in', 'ship X', '--no-branch'], c.io, deps(repo));
+  const c2 = capture();
+  const code = await runCli(['status'], c2.io, deps(repo));
+  expect(code).toBe(0);
+  const text = c2.out();
+  expect(text).toContain('ship X'); // goal
+  expect(text).toMatch(/ready/i);
+  expect(text).toMatch(/closed/i);
+});
+
+test('clock-in writes state', async () => {
+  const repo = mkdtempSync(join(tmpdir(), 'f9-cli-'));
+  const c = capture();
+  const code = await runCli(['clock-in', 'ship the thing', '--no-branch'], c.io, deps(repo));
+  expect(code).toBe(0);
+  expect(existsSync(join(repo, '.claude/five-to-nine/shift.local.md'))).toBe(true);
+});
+
+test('--help lists subcommands and returns 0 without side effects', async () => {
+  const repo = mkdtempSync(join(tmpdir(), 'f9-cli-'));
+  const c = capture();
+  const code = await runCli(['--help'], c.io, deps(repo));
+  expect(code).toBe(0);
+  const text = c.out();
+  for (const sub of ['clock-in', 'clock-out', 'status', 'run', 'dashboard', 'config', 'doctor']) {
+    expect(text).toContain(sub);
+  }
+  expect(existsSync(join(repo, '.claude/five-to-nine/shift.local.md'))).toBe(false);
+});
+
+test('unknown subcommand → nonzero + usage to stderr', async () => {
+  const repo = mkdtempSync(join(tmpdir(), 'f9-cli-'));
+  const c = capture();
+  const code = await runCli(['bogus-cmd'], c.io, deps(repo));
+  expect(code).not.toBe(0);
+  expect(c.err().length).toBeGreaterThan(0);
+});
+
+test('bare invocation prints usage (TUI is Milestone B)', async () => {
+  const repo = mkdtempSync(join(tmpdir(), 'f9-cli-'));
+  const c = capture();
+  const code = await runCli([], c.io, deps(repo));
+  expect(code).toBe(0);
+  expect(c.out()).toContain('clock-in');
+});
