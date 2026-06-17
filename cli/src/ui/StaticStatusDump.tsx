@@ -1,5 +1,26 @@
 import { Box, Text } from 'ink';
-import type { DashboardModel } from '../operations/dashboard-model.ts';
+import type { DashboardModel, PendingGate } from '../operations/dashboard-model.ts';
+
+/**
+ * The scriptable instruction shown off-TTY when an irreversible action is
+ * pending. The non-TTY path NEVER shows a modal and NEVER silent-allows —
+ * instead it tells the operator exactly how to approve from a shell/CI, so
+ * consent stays automatable.
+ */
+function PendingGateNotice({ pg }: { pg: PendingGate }): React.ReactElement {
+  return (
+    <Box flexDirection="column" marginTop={1}>
+      <Text>irreversible action pending — resolve it from a shell:</Text>
+      <Text>
+        category: {pg.category} · command: {pg.command ?? pg.segment}
+      </Text>
+      <Text>
+        approve: the-5-to-9 gate approve {pg.id} --token {pg.token}
+      </Text>
+      <Text>deny: the-5-to-9 gate deny {pg.id}</Text>
+    </Box>
+  );
+}
 
 /**
  * The non-TTY / pipe / CI fallback: a plain, single-render status dump. No
@@ -8,11 +29,13 @@ import type { DashboardModel } from '../operations/dashboard-model.ts';
  * props here so the output is plain text either way).
  */
 export function StaticStatusDump({ model }: { model: DashboardModel | null }): React.ReactElement {
+  const pg = model?.pendingGate;
   if (model == null || !model.state.active) {
     return (
       <Box flexDirection="column">
         <Text>The 5 to 9 — no active shift</Text>
         <Text>run `the-5-to-9 clock-in &lt;goal&gt;` to start one</Text>
+        {pg?.id != null && <PendingGateNotice pg={pg} />}
       </Box>
     );
   }
@@ -35,6 +58,7 @@ export function StaticStatusDump({ model }: { model: DashboardModel | null }): R
       <Text>
         progress: {model.progress.closed}/{model.progress.total} ({model.progress.pct}%)
       </Text>
+      {pg?.id != null && <PendingGateNotice pg={pg} />}
     </Box>
   );
 }

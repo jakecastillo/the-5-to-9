@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { expect, test, vi } from 'vitest';
 import type { BeadsRead } from './beads-read.ts';
 import { type CliDeps, runCli } from './cli.ts';
+import { readResolution, requestConsent } from './consent.ts';
 
 function capture() {
   const out: string[] = [];
@@ -113,4 +114,84 @@ test('dashboard without --watch stays a one-shot text render (no TUI)', async ()
   expect(code).toBe(0);
   expect(launchTui).not.toHaveBeenCalled();
   expect(c.out()).toMatch(/progress|ready/i);
+});
+
+// ── gate subcommand (scriptable, non-TTY consent) ────────────────────────────
+
+function stateDirOf(repo: string): string {
+  return join(repo, '.claude', 'five-to-nine');
+}
+
+test('gate pending lists a pending record (id, command, category, token)', async () => {
+  const repo = mkdtempSync(join(tmpdir(), 'f9-cli-'));
+  const p = requestConsent(
+    { command: 'gh release create v1', category: 'publish' },
+    { stateDir: stateDirOf(repo) },
+  );
+  const c = capture();
+  const code = await runCli(['gate', 'pending'], c.io, deps(repo));
+  expect(code).toBe(0);
+  const text = c.out();
+  expect(text).toContain(p.id);
+  expect(text).toContain('gh release create v1');
+  expect(text).toMatch(/publish/);
+  expect(text).toContain(p.token);
+});
+
+test('gate pending with nothing pending says so, returns 0', async () => {
+  const repo = mkdtempSync(join(tmpdir(), 'f9-cli-'));
+  const c = capture();
+  const code = await runCli(['gate', 'pending'], c.io, deps(repo));
+  expect(code).toBe(0);
+  expect(c.out()).toMatch(/no pending|none/i);
+});
+
+test('gate approve with the WRONG token → nonzero, no approval written', async () => {
+  const repo = mkdtempSync(join(tmpdir(), 'f9-cli-'));
+  const p = requestConsent(
+    { command: 'deploy prod', category: 'deploy' },
+    { stateDir: stateDirOf(repo) },
+  );
+  const c = capture();
+  const code = await runCli(['gate', 'approve', p.id, '--token', 'WRONG'], c.io, deps(repo));
+  expect(code).not.toBe(0);
+  expect(c.err().length).toBeGreaterThan(0);
+  // INVARIANT: a wrong token never approves and never writes a resolution.
+  expect(readResolution(p.id, { stateDir: stateDirOf(repo) })).toBeNull();
+});
+
+test('gate approve with a MISSING token → nonzero, no approval written', async () => {
+  const repo = mkdtempSync(join(tmpdir(), 'f9-cli-'));
+  const p = requestConsent(
+    { command: 'deploy prod', category: 'deploy' },
+    { stateDir: stateDirOf(repo) },
+  );
+  const c = capture();
+  const code = await runCli(['gate', 'approve', p.id], c.io, deps(repo));
+  expect(code).not.toBe(0);
+  expect(readResolution(p.id, { stateDir: stateDirOf(repo) })).toBeNull();
+});
+
+test('gate approve with the CORRECT token → 0, approved resolution written', async () => {
+  const repo = mkdtempSync(join(tmpdir(), 'f9-cli-'));
+  const p = requestConsent(
+    { command: 'deploy prod', category: 'deploy' },
+    { stateDir: stateDirOf(repo) },
+  );
+  const c = capture();
+  const code = await runCli(['gate', 'approve', p.id, '--token', p.token], c.io, deps(repo));
+  expect(code).toBe(0);
+  expect(readResolution(p.id, { stateDir: stateDirOf(repo) })?.approved).toBe(true);
+});
+
+test('gate deny → 0, denied resolution written', async () => {
+  const repo = mkdtempSync(join(tmpdir(), 'f9-cli-'));
+  const p = requestConsent(
+    { command: 'deploy prod', category: 'deploy' },
+    { stateDir: stateDirOf(repo) },
+  );
+  const c = capture();
+  const code = await runCli(['gate', 'deny', p.id], c.io, deps(repo));
+  expect(code).toBe(0);
+  expect(readResolution(p.id, { stateDir: stateDirOf(repo) })?.approved).toBe(false);
 });

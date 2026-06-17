@@ -1,9 +1,13 @@
+import { Box } from 'ink';
 import { render } from 'ink-testing-library';
 import { expect, test, vi } from 'vitest';
 import { App } from './App.tsx';
 import { ACTIVE_MODEL, IDLE_MODEL, PENDING_GATE_MODEL } from './fixtures.ts';
 
 const delay = (ms = 80) => new Promise((r) => setTimeout(r, ms));
+function wide(node: React.ReactElement) {
+  return render(<Box width={160}>{node}</Box>);
+}
 
 test('App renders the goal text from the initial model', () => {
   const { lastFrame, unmount } = render(<App initial={{ model: ACTIVE_MODEL }} />);
@@ -47,6 +51,19 @@ test('App: a non-TTY NEVER shows the gate modal even with a pending consent', as
   // The interactive modal must not appear off-TTY; the dump path is shown.
   expect(f).not.toMatch(/APPROVE OR DENY/i);
   expect(f).not.toMatch(/type exactly/i);
+  unmount();
+});
+
+test('App: a non-TTY prints the scriptable approve instruction instead of a modal', async () => {
+  const { lastFrame, unmount } = wide(
+    <App deps={{ read: pendingRead }} rawModeSupported={false} />,
+  );
+  await delay();
+  const f = lastFrame() ?? '';
+  // Consent stays automatable: the dump names the scriptable approve command.
+  expect(f).toMatch(/gate approve/i);
+  expect(f).toContain('c-abc'); // the pending id
+  expect(f).toMatch(/--token/);
   unmount();
 });
 
