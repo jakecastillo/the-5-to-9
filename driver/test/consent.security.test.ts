@@ -95,3 +95,17 @@ test('F1: write-once — a deny is NOT overwritten by a later approve', () => {
   assert.equal(second.ok, false); // refused (write-once)
   assert.equal(readResolution(p.id, d)?.approved, false); // still denied
 });
+
+// ── Finding A: the confirm token binds to the EXACT command ───────────────────
+test('Finding A: the token is command-bound — same verb, different command → different token', () => {
+  const d = freshDeps();
+  const a = requestConsent({ command: 'npm publish', category: 'publish' }, d);
+  const b = requestConsent({ command: 'npm publish && rm -rf ~', category: 'publish' }, d);
+  // Both start with the verb, but the fingerprint differs, so the tokens differ —
+  // typing the benign command's token can never approve the chained-payload one.
+  assert.notEqual(a.token, b.token);
+  assert.match(a.token, /^npm-[0-9a-f]{6}$/);
+  // The chained payload's pending cannot be approved with the plain verb.
+  assert.equal(resolve(b.id, true, 'npm', d).ok, false);
+  assert.equal(readResolution(b.id, d), null);
+});

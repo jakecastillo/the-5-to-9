@@ -92,6 +92,13 @@ export function GateModal({
       <Box marginTop={1} flexDirection="column">
         <Text>category: {pending.category}</Text>
         <Text>command: {pending.command}</Text>
+        {/[;&|`]|\$\(/.test(pending.command) && (
+          <Text bold color={plain ? undefined : 'yellow'}>
+            {
+              '⚠ shell operators present — this command CHAINS operations. Read the WHOLE command before approving; the token confirms this exact string.'
+            }
+          </Text>
+        )}
         {who !== '' && <Text>{who}</Text>}
       </Box>
       <Box marginTop={1} flexDirection="column">

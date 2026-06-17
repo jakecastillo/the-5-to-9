@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import {
   existsSync,
   mkdirSync,
@@ -125,7 +125,13 @@ function atomicWrite(path: string, data: string): void {
  */
 function deriveToken(req: ConsentRequest): string {
   const firstWord = req.command.trim().split(/\s+/)[0] ?? '';
-  return firstWord || req.category || 'confirm';
+  const verb = firstWord || req.category || 'confirm';
+  // Bind the token to the EXACT command (Eye in the Sky Finding A): the hash
+  // covers the FULL command, so typing the token confirms THIS command — not any
+  // command that merely shares the verb. A chained/altered payload changes the
+  // token, so a human can't approve `npm publish && <payload>` by typing `npm`.
+  const fingerprint = createHash('sha256').update(req.command).digest('hex').slice(0, 6);
+  return `${verb}-${fingerprint}`;
 }
 
 /**
