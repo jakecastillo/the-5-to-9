@@ -83,6 +83,33 @@ function resolvedPath(dir: string, id: string): string {
   return join(dir, `${id}.resolved.json`);
 }
 
+/**
+ * A consent id must be a single safe path component (uuid-shaped) — never a path
+ * fragment. Rejecting `..`, slashes, and dots closes the path-traversal vector
+ * (F2) where a crafted `id` from `gate approve <id>` could read/write outside the
+ * consent dir. Fail-closed: a bad id reads as "nothing" and refuses to resolve.
+ */
+const SAFE_ID = /^[A-Za-z0-9_-]+$/;
+function isSafeId(id: unknown): id is string {
+  return typeof id === 'string' && id.length > 0 && id.length <= 128 && SAFE_ID.test(id);
+}
+
+/**
+ * Exclusive create = atomic write-once (F1). `wx` fails with EEXIST if the file
+ * already exists, so two racing resolvers can never both win and a deny can never
+ * be clobbered by a later approve — no TOCTOU between check and write.
+ */
+function writeOnce(path: string, data: string): { ok: boolean; error?: string } {
+  try {
+    writeFileSync(path, data, { encoding: 'utf8', flag: 'wx' });
+    return { ok: true };
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code === 'EEXIST') return { ok: false, error: 'already resolved (write-once)' };
+    return { ok: false, error: `failed to write resolution: ${(err as Error).message}` };
+  }
+}
+
 /** Atomic write: tmp + rename, so a crash never leaves a half-written record. */
 function atomicWrite(path: string, data: string): void {
   const tmp = `${path}.tmp-${process.pid}-${randomUUID()}`;
@@ -124,6 +151,7 @@ export function requestConsent(req: ConsentRequest, deps: ConsentDeps = {}): Pen
 
 /** Read+parse a pending record by id, or null on missing/corrupt (fail-closed). */
 function readPending(dir: string, id: string): PendingConsent | null {
+  if (!isSafeId(id)) return null;
   const p = pendingPath(dir, id);
   if (!existsSync(p)) return null;
   try {
@@ -159,11 +187,22 @@ export function listPending(deps: ConsentDeps = {}): PendingConsent[] {
 
 /** Read a resolution by id, or null on missing/corrupt (fail-closed). */
 export function readResolution(id: string, deps: ConsentDeps = {}): Resolution | null {
+  if (!isSafeId(id)) return null;
   const dir = consentDir(deps);
   const p = resolvedPath(dir, id);
   if (!existsSync(p)) return null;
   try {
-    return JSON.parse(readFileSync(p, 'utf8')) as Resolution;
+    const parsed = JSON.parse(readFileSync(p, 'utf8')) as unknown;
+    // Shape-validate (F4): a resolution counts ONLY if `approved` is a real
+    // boolean. A non-boolean (e.g. the string "yes") must never read as approval.
+    if (
+      !parsed ||
+      typeof parsed !== 'object' ||
+      typeof (parsed as Resolution).approved !== 'boolean'
+    ) {
+      return null;
+    }
+    return parsed as Resolution;
   } catch {
     return null;
   }
@@ -180,31 +219,45 @@ export function resolve(
   token: string | undefined,
   deps: ConsentDeps = {},
 ): { ok: boolean; error?: string } {
+  if (!isSafeId(id)) {
+    return { ok: false, error: 'invalid consent id — refused (fail-closed)' };
+  }
   const dir = consentDir(deps);
   const pending = readPending(dir, id);
   if (!pending) {
     return { ok: false, error: `no pending consent for id ${id}` };
   }
-  // Write-once: refuse if a resolution already exists.
-  if (existsSync(resolvedPath(dir, id))) {
-    return { ok: false, error: `consent ${id} is already resolved (write-once)` };
-  }
   if (approved) {
-    // INVARIANT: a wrong token can never approve, and writes nothing.
+    // INVARIANT: a wrong/empty token can never approve, and writes nothing. A
+    // degenerate pending token (missing/empty) is itself unapprovable (F3) — the
+    // gate never trusts a tokenless request.
+    if (!pending.token || pending.token.length === 0) {
+      return {
+        ok: false,
+        error: 'pending record has no confirm token — approval refused (fail-closed)',
+      };
+    }
     if (token !== pending.token) {
       return { ok: false, error: 'token mismatch — approval refused (fail-closed)' };
     }
   }
+  mkdirSync(dir, { recursive: true });
   const res: Resolution = {
     id,
     approved,
     token: approved ? (token ?? null) : null,
     resolvedAt: new Date((deps.now ?? Date.now)()).toISOString(),
   };
-  try {
-    atomicWrite(resolvedPath(dir, id), JSON.stringify(res, null, 2));
-  } catch (err) {
-    return { ok: false, error: `failed to write resolution: ${(err as Error).message}` };
+  // Write-once enforced ATOMICALLY by exclusive create (F1) — no check/write TOCTOU.
+  const w = writeOnce(resolvedPath(dir, id), JSON.stringify(res, null, 2));
+  if (!w.ok) {
+    return {
+      ok: false,
+      error:
+        w.error === 'already resolved (write-once)'
+          ? `consent ${id} is already resolved (write-once)`
+          : w.error,
+    };
   }
   return { ok: true };
 }

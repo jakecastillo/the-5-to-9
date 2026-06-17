@@ -180,27 +180,34 @@ export async function consentCheckpoint(
         pollMs: deps.pollMs,
       }));
 
-  const pending = request({
-    command: action.command,
-    category: verdict.segment ?? action.command,
-    beadId: action.beadId ?? null,
-    role: action.role ?? null,
-  });
-  const resolution = await await_(pending.id);
+  // Self-default-deny: ANY failure requesting/awaiting/journaling consent must NOT
+  // proceed — the checkpoint never relies on its caller to fail closed.
+  try {
+    const pending = request({
+      command: action.command,
+      category: verdict.segment ?? action.command,
+      beadId: action.beadId ?? null,
+      role: action.role ?? null,
+    });
+    const resolution = await await_(pending.id);
 
-  await deps.journal.append({
-    type: 'gate',
-    beadId: action.beadId ?? undefined,
-    role: action.role ?? undefined,
-    command: action.command,
-    segment: verdict.segment,
-    approved: resolution.approved,
-    resolvedAt: resolution.resolvedAt,
-  });
+    await deps.journal.append({
+      type: 'gate',
+      beadId: action.beadId ?? undefined,
+      role: action.role ?? undefined,
+      command: action.command,
+      segment: verdict.segment,
+      approved: resolution.approved === true,
+      resolvedAt: resolution.resolvedAt,
+    });
 
-  if (resolution.approved) {
-    return { proceed: true, skipped: false, resolution };
+    // Proceed ONLY on an explicit boolean-true approval.
+    if (resolution.approved === true) {
+      return { proceed: true, skipped: false, resolution };
+    }
+    // Fail-closed: denied or timed out → skip the action, do not proceed.
+    return { proceed: false, skipped: true, resolution };
+  } catch {
+    return { proceed: false, skipped: true };
   }
-  // Fail-closed: denied or timed out → skip the action, do not proceed.
-  return { proceed: false, skipped: true, resolution };
 }
