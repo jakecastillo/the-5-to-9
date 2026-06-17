@@ -1,15 +1,22 @@
 #!/usr/bin/env bash
-# The 5 to 9 — shift dashboard entrypoint scaffold (phu.3).
+# The 5 to 9 — shift dashboard (phu.3).
 # READ-ONLY: never writes beads, state, or git. POSIX bash, Git-Bash-compatible.
 # shellcheck shell=bash
 #
-# Composition seams:
-#   f9_dash_bead_lists   — phu.3.2: ready / in_progress / blocked lists (this bead)
-#   f9_dash_status_panel — phu.3.1: top-level status panel (sibling, not yet wired)
-#   f9_dash_loop         — phu.3.3: refresh loop + main entrypoint (sibling, not yet wired)
+# Usage:
+#   bash scripts/shift-dashboard.sh              # render once and exit
+#   bash scripts/shift-dashboard.sh --watch      # live-refresh loop (Ctrl-C to stop)
+#   bash scripts/shift-dashboard.sh --watch --interval 5   # refresh every 5 s
+#   bash scripts/shift-dashboard.sh --watch --refreshes 3  # bounded: 3 refreshes then exit
+#   FIVE_TO_NINE_DASH_MAX_REFRESHES=N bash scripts/shift-dashboard.sh --watch
+#                                                # env-var bounding (useful in tests)
 #
-# Each function is self-contained so phu.3.1 and phu.3.3 can source this file
-# and compose freely.
+# Composition seams:
+#   f9_dash_bead_lists   — phu.3.2: ready / in_progress / blocked lists
+#   f9_dash_status_panel — phu.3.1: top-level status panel
+#   f9_dash_loop         — phu.3.3: refresh loop + main entrypoint
+#
+# Each function is self-contained so callers can source this file and compose freely.
 
 set -uo pipefail
 
@@ -144,20 +151,103 @@ f9_dash_status_panel() {
 }
 
 # ---------------------------------------------------------------------------
-# f9_dash_loop placeholder seam for phu.3.3 (not implemented yet).
+# f9_dash_render — one full render pass (status panel + bead lists).
+# Strictly read-only.
 # ---------------------------------------------------------------------------
-# f9_dash_loop() { :; }   # phu.3.3 will implement this
-
-# ---------------------------------------------------------------------------
-# main — minimal entrypoint; calls the status panel + lists once and exits.
-# Supports --source-only to allow tests to source functions without running main.
-# phu.3.3 will replace this with the refresh loop.
-# ---------------------------------------------------------------------------
-main() {
+f9_dash_render() {
   printf 'Shift Dashboard\n'
   f9_dash_status_panel
   f9_dash_bead_lists
   printf '\n'
+}
+
+# ---------------------------------------------------------------------------
+# f9_dash_loop — phu.3.3: live-refresh watch loop.
+#
+# Parameters (all optional):
+#   --interval <seconds>   Seconds between refreshes (default: 2).
+#   --refreshes <N>        Exit after N refreshes (default: unbounded / until signal).
+#
+# Environment (alternative bounding mechanism, convenient for tests):
+#   FIVE_TO_NINE_DASH_MAX_REFRESHES=N  Same as --refreshes N; --refreshes wins if both set.
+#
+# Traps SIGINT and SIGTERM for a clean exit (code 0).
+# Strictly read-only — never writes beads, state, or git.
+# ---------------------------------------------------------------------------
+f9_dash_loop() {
+  local interval=2
+  local max_refreshes="${FIVE_TO_NINE_DASH_MAX_REFRESHES:-0}"  # 0 = unbounded
+
+  # Parse local flags.
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --interval)
+        interval="${2:?--interval requires a value}"; shift 2 ;;
+      --refreshes)
+        max_refreshes="${2:?--refreshes requires a value}"; shift 2 ;;
+      *)
+        shift ;;
+    esac
+  done
+
+  # Clean exit on SIGINT / SIGTERM.
+  local _loop_done=0
+  trap '_loop_done=1' INT TERM
+
+  local count=0
+  while [[ "$_loop_done" -eq 0 ]]; do
+    # Clear screen then render.
+    printf '\033[2J\033[H'
+    f9_dash_render
+
+    count=$(( count + 1 ))
+
+    # Bounded exit.
+    if [[ "$max_refreshes" -gt 0 ]] && [[ "$count" -ge "$max_refreshes" ]]; then
+      break
+    fi
+
+    # Sleep in short increments so SIGINT wakes us promptly.
+    local slept=0
+    while [[ "$_loop_done" -eq 0 ]] && [[ "$slept" -lt "$interval" ]]; do
+      sleep 1
+      slept=$(( slept + 1 ))
+    done
+  done
+
+  # Restore default signal handling.
+  trap - INT TERM
+  return 0
+}
+
+# ---------------------------------------------------------------------------
+# main — entrypoint.
+# Supports:
+#   (no args)              render once and exit
+#   --watch [opts…]        live-refresh loop (see f9_dash_loop for options)
+#   --source-only          source functions only; do not run main (for tests)
+# ---------------------------------------------------------------------------
+main() {
+  # Parse top-level flags; collect remainder to pass to loop.
+  local watch_mode=0
+  local -a loop_args=()
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --watch)
+        watch_mode=1; shift ;;
+      --interval|--refreshes)
+        loop_args+=("$1" "${2:?$1 requires a value}"); shift 2 ;;
+      *)
+        shift ;;
+    esac
+  done
+
+  if [[ "$watch_mode" -eq 1 ]]; then
+    f9_dash_loop "${loop_args[@]+"${loop_args[@]}"}"
+  else
+    f9_dash_render
+  fi
 }
 
 # Allow callers to source this file without running main (e.g. tests).

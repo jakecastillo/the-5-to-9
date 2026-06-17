@@ -52,6 +52,17 @@ the-5-to-9@the-5-to-9` (persistent), then `/clock-in`. See [INSTALL.md](INSTALL.
 add` is pending `ap8`.
 - **Codex App** — shares the Codex plugin system; unblocks with Codex CLI (`ap8`).
 
+## Live dashboard
+
+`scripts/shift-dashboard.sh` is a **read-only** terminal dashboard for the shift.
+Run it any time without affecting state:
+
+```bash
+bash scripts/shift-dashboard.sh              # render once
+bash scripts/shift-dashboard.sh --watch      # live-refresh every 2 s (Ctrl-C to stop)
+bash scripts/shift-dashboard.sh --watch --interval 5 --refreshes 10
+```
+
 ## The honest line
 
 **Claude CLI is the only fully-shipped surface today.** The other three run the _portable

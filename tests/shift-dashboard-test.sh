@@ -176,6 +176,85 @@ printf '%s' "$uncap_out" | grep -q '∞' \
   && ok "status panel shows ∞ for uncapped max_iterations" \
   || no "status panel missing ∞ for uncapped (got: $uncap_out)"
 
+# ── 11. --watch --refreshes N: bounded loop renders each panel N times ────────
+# Each refresh emits the READY header; N refreshes → N occurrences.
+watch_n=3
+watch_out="$(bash "$DASH" --watch --refreshes "$watch_n" 2>&1)"
+watch_rc=$?
+[[ "$watch_rc" -eq 0 ]] \
+  && ok "--watch --refreshes $watch_n exits 0" \
+  || no "--watch --refreshes $watch_n exited $watch_rc (must be 0)"
+
+# Count occurrences of the READY header (one per refresh cycle).
+ready_count="$(printf '%s\n' "$watch_out" | grep -ci '^── READY ──' || true)"
+[[ "$ready_count" -eq "$watch_n" ]] \
+  && ok "--watch renders READY header exactly $watch_n times" \
+  || no "--watch rendered READY header $ready_count times (expected $watch_n)"
+
+# FIVE_TO_NINE_DASH_MAX_REFRESHES env var is an alternative bounding mechanism.
+env_out="$(FIVE_TO_NINE_DASH_MAX_REFRESHES=2 bash "$DASH" --watch 2>&1)"
+env_rc=$?
+[[ "$env_rc" -eq 0 ]] \
+  && ok "FIVE_TO_NINE_DASH_MAX_REFRESHES=2 --watch exits 0" \
+  || no "FIVE_TO_NINE_DASH_MAX_REFRESHES=2 --watch exited $env_rc (must be 0)"
+env_ready="$(printf '%s\n' "$env_out" | grep -ci '^── READY ──' || true)"
+[[ "$env_ready" -eq 2 ]] \
+  && ok "FIVE_TO_NINE_DASH_MAX_REFRESHES=2 renders READY header exactly 2 times" \
+  || no "FIVE_TO_NINE_DASH_MAX_REFRESHES=2 rendered READY header $env_ready times (expected 2)"
+
+# ── 12. --watch --refreshes 1: single-refresh still produces full output ──────
+one_out="$(bash "$DASH" --watch --refreshes 1 2>&1)"
+one_rc=$?
+[[ "$one_rc" -eq 0 ]] \
+  && ok "--watch --refreshes 1 exits 0" \
+  || no "--watch --refreshes 1 exited $one_rc (must be 0)"
+printf '%s\n' "$one_out" | grep -q 'test-r1' \
+  && ok "--watch single-refresh contains ready bead test-r1" \
+  || no "--watch single-refresh missing ready bead test-r1"
+
+# ── 13. SIGTERM exits cleanly (exit 0 or 143) ────────────────────────────────
+# Spin --watch with a long interval; send SIGTERM after the first render.
+# The process must exit within a few seconds and not hang.
+# Note: background jobs in non-interactive bash ignore SIGINT (SIG_IGN) so we
+# test with SIGTERM which is always delivered to background processes.
+bash "$DASH" --watch --interval 10 &
+BGPID=$!
+( sleep 0.5; kill -TERM "$BGPID" 2>/dev/null || true ) &
+WATCHER_KILLER=$!
+# Give it a generous timeout; if still alive after 5s, kill it and fail.
+wait_deadline=10
+sig_rc=0
+for _w in $(seq 1 "$wait_deadline"); do
+  if ! kill -0 "$BGPID" 2>/dev/null; then
+    break
+  fi
+  sleep 1
+done
+if kill -0 "$BGPID" 2>/dev/null; then
+  kill -KILL "$BGPID" 2>/dev/null || true
+  no "SIGTERM: process still alive after ${wait_deadline}s (hung?)"
+  sig_rc=255
+else
+  wait "$BGPID" 2>/dev/null; sig_rc=$?
+fi
+wait "$WATCHER_KILLER" 2>/dev/null || true
+# Accept 0 (trap-clean) or 143 (SIGTERM default)
+[[ "$sig_rc" -eq 0 || "$sig_rc" -eq 143 ]] \
+  && ok "SIGTERM exits cleanly (rc=$sig_rc)" \
+  || no "SIGTERM exited with unexpected rc=$sig_rc (expected 0 or 143)"
+
+# ── 14. --watch is strictly read-only: no bd writes in loop ──────────────────
+loop_writes="$(bash "$DASH" --watch --refreshes 2 2>&1 | grep -c 'WRITE_ATTEMPT' || true)"
+[[ "$loop_writes" -eq 0 ]] \
+  && ok "--watch loop made no bd write calls" \
+  || no "--watch loop attempted a bd write (WRITE_ATTEMPT seen)"
+
+# ── 15. usage / help header visible in script ────────────────────────────────
+# Check that the script contains a usage line (entrypoint documentation).
+grep -q -i 'usage\|--watch\|shift-dashboard' "$DASH" \
+  && ok "script contains usage/entrypoint documentation" \
+  || no "script missing usage/entrypoint documentation"
+
 if [[ "$fail" -eq 0 ]]; then
   echo "shift-dashboard-test: GREEN"
   exit 0
