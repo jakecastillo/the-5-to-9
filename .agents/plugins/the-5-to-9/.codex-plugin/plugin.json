@@ -1,6 +1,6 @@
 {
   "name": "the-5-to-9",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Night-shift crew skills for Codex: the shift protocol, beads-backed memory, and crew model right-sizing. The portable core of The 5 to 9. NOTE: skills/ here is a byte-for-byte copy of the repo's canonical skills/ (Codex copies only this subdir on install, so skills must live inside it). Keep in sync — the gate enforces it: `rm -rf .agents/plugins/the-5-to-9/skills && cp -R skills .agents/plugins/the-5-to-9/skills`.",
   "author": {
     "name": "jakecastillo"

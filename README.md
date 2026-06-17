@@ -12,7 +12,7 @@ The 5 to 9 is a **cross-tool AI night-shift crew** — shipped today as a Claude
 
 See **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** for the crew topology, the service loop, the safety gate, and the cross-tool design — with diagrams. For where the crew runs today (Claude CLI/App, Codex CLI/App) and what each surface gets, see **[docs/SURFACES.md](docs/SURFACES.md)**.
 
-> Status: **v0.1.0, early/experimental.** Use with caution and keep an eye on long runs (see [Status](#status)).
+> Status: **v0.2.0, early/experimental.** Use with caution and keep an eye on long runs (see [Status](#status)).
 
 ---
 
@@ -167,7 +167,7 @@ bash tests/validate-plugin.sh   # must exit 0; CI runs it
 
 ## Status
 
-**v0.1.0 — early and experimental.** It works, but treat it like a new hire on the night shift: capable, worth watching. Use with caution, and **monitor long runs** — the fresh-process loop avoids context rot, but you still want eyes on it before you trust it with a big backlog unattended.
+**v0.2.0 — early and experimental.** It works, but treat it like a new hire on the night shift: capable, worth watching. Use with caution, and **monitor long runs** — the fresh-process loop avoids context rot, but you still want eyes on it before you trust it with a big backlog unattended.
 
 The **markdown plugin crew is the primary runtime.** There's also an experimental,
 secondary **TypeScript driver under [`driver/`](driver/)** — a thin deterministic
