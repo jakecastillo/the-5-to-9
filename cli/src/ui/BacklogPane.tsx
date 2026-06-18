@@ -9,8 +9,6 @@ export interface BacklogPaneProps {
   isActive: boolean;
   /** The selected bead id (held in App state, separate from polled data). */
   selectedId: string | null;
-  /** Scroll offset (held in App state). */
-  scrollOffset: number;
   /** The filter string (empty = no filter). Matches id/title/state. */
   filter: string;
   /** Called with the newly-selected id on j/k/g/G. */
@@ -58,9 +56,10 @@ function BeadRow({
 
 /**
  * The Backlog pane: READY / IN-PROGRESS / BLOCKED sections + a progress bar.
- * Selection/scroll/filter come in as props (held in App state, separate from
- * polled data) so a background poll never yanks the cursor. j/k/g/G move the
- * selection through the flattened, filtered list and report via `onSelect`.
+ * Selection/filter come in as props (held in App state, separate from polled
+ * data) so a background poll never yanks the cursor. j/k/g/G move the selection
+ * through the flattened, filtered list and report via `onSelect`. The Ink flex
+ * layout auto-flows the sections — no manual scroll offset needed.
  */
 export function BacklogPane({
   model,

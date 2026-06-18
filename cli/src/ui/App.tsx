@@ -144,7 +144,17 @@ export function App({ initial, rawModeSupported = true, deps = {} }: AppProps): 
     setUi((s) => ({ ...s, modal: null }));
   }, []);
 
+  // A synchronous start guard: `ui.running` can be stale within two rapid key
+  // events in the same tick (setUi is async), so the ref is the source of truth
+  // that blocks a duplicate run before the first start's state has committed.
+  const runningRef = useRef(deps.initialRunning ?? false);
+  useEffect(() => {
+    runningRef.current = ui.running;
+  }, [ui.running]);
+
   const onRun = useCallback(async () => {
+    if (runningRef.current) return; // already running — ignore the duplicate 'r'
+    runningRef.current = true;
     if (startRun == null) {
       setUi((s) => ({ ...s, running: true, focusedPane: 'stream' }));
       return;
@@ -153,6 +163,8 @@ export function App({ initial, rawModeSupported = true, deps = {} }: AppProps): 
     setRunHandle(handle);
     setUi((s) => ({ ...s, running: true, focusedPane: 'stream' }));
   }, [startRun]);
+
+  const onToggleFollow = useCallback(() => setUi((s) => ({ ...s, follow: !s.follow })), []);
 
   // Stop the viewer's owned resources WITHOUT killing the detached driver.
   const teardownViewer = useCallback(() => {
@@ -183,6 +195,9 @@ export function App({ initial, rawModeSupported = true, deps = {} }: AppProps): 
     if (key.tab) return cyclePane(key.shift ? -1 : 1);
     if (input === '?') return setUi((s) => ({ ...s, modal: 'help' }));
     if (input === 'c') return setUi((s) => ({ ...s, modal: 'clock-in' }));
+    // `f` toggles follow but ONLY when the Run Stream is focused — that binding
+    // lives in RunStreamPane (its useInput is isActive-gated), driving the
+    // onToggleFollow we pass below. Handling it here too would double-toggle.
     if (input === 'r' && shiftActive) return void onRun();
     if (input === 'o' && shiftActive) {
       teardownViewer();
@@ -267,7 +282,6 @@ export function App({ initial, rawModeSupported = true, deps = {} }: AppProps): 
             model={model}
             isActive={ui.focusedPane === 'backlog'}
             selectedId={ui.selectedBeadId}
-            scrollOffset={ui.scrollOffset}
             filter={ui.filter}
             onSelect={(id) => setUi((s) => ({ ...s, selectedBeadId: id }))}
           />
@@ -275,9 +289,10 @@ export function App({ initial, rawModeSupported = true, deps = {} }: AppProps): 
         <RunStreamPane
           lines={streamLines}
           liveLine={ui.running ? 'working…' : ''}
-          follow
+          follow={ui.follow}
           isActive={ui.focusedPane === 'stream'}
           running={ui.running}
+          onToggleFollow={onToggleFollow}
         />
       </Box>
       {ui.modal === 'quit-confirm' && (

@@ -87,6 +87,10 @@ export function useShiftPoll(
 
   useEffect(() => {
     if (!enabled) {
+      // Stop any poller still on the ref BEFORE nulling it, so the disable path
+      // can never orphan a live interval (the React cleanup also stops it; this
+      // is the defensive guarantee that a leaked poller is always torn down).
+      pollerRef.current?.stop();
       pollerRef.current = null;
       return;
     }
