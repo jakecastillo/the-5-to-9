@@ -1,6 +1,6 @@
 import { Command, CommanderError } from 'commander';
 import { type BeadsRead, makeBeadsRead } from './beads-read.ts';
-import { effectiveBackend, readConfig, setConfig } from './config-file.ts';
+import { BACKENDS, effectiveBackend, readConfig, setConfig } from './config-file.ts';
 import { clockIn } from './operations/clock-in.ts';
 import { clockOut } from './operations/clock-out.ts';
 import { getDashboardModel } from './operations/dashboard-model.ts';
@@ -165,6 +165,14 @@ function buildProgram(io: Io, deps: CliDeps): Command {
       const maxIterations = parsePositiveIntFlag(opts.maxIterations, '--max-iterations');
       const concurrency = parsePositiveIntFlag(opts.concurrency, '--concurrency');
 
+      // Validate --backend before dispatch — an unknown backend must never reach
+      // the driver. Throw so runCli maps it to a nonzero exit (error goes to stderr).
+      if (opts.backend && !(BACKENDS as readonly string[]).includes(opts.backend)) {
+        throw new Error(
+          `invalid backend '${opts.backend}': valid backends are ${BACKENDS.join(', ')}`,
+        );
+      }
+
       const s = await status({ beads, stateDir });
       const backend =
         (opts.backend as 'claude' | 'codex' | 'api' | undefined) ?? effectiveBackend();
@@ -234,6 +242,12 @@ function buildProgram(io: Io, deps: CliDeps): Command {
     .description('preflight node / bd / backend')
     .option('--backend <name>', 'claude | codex | api')
     .action(async (opts: { backend?: string }) => {
+      // Validate --backend before dispatch (same guard as 'run').
+      if (opts.backend && !(BACKENDS as readonly string[]).includes(opts.backend)) {
+        throw new Error(
+          `invalid backend '${opts.backend}': valid backends are ${BACKENDS.join(', ')}`,
+        );
+      }
       const backend =
         (opts.backend as 'claude' | 'codex' | 'api' | undefined) ?? effectiveBackend();
       const report = await doctor({ backend });
