@@ -161,7 +161,13 @@ function readPending(dir: string, id: string): PendingConsent | null {
   const p = pendingPath(dir, id);
   if (!existsSync(p)) return null;
   try {
-    return JSON.parse(readFileSync(p, 'utf8')) as PendingConsent;
+    const rec = JSON.parse(readFileSync(p, 'utf8')) as PendingConsent;
+    // Validate that the JSON id matches the filename-derived id AND is itself
+    // safe (F2 / Bug-5 PRIMARY fix). A mismatch is a tampered file — treat as
+    // corrupt. This closes the vector where a crafted file with a mismatched
+    // id could bypass filename-level checks downstream.
+    if (rec.id !== id || !isSafeId(rec.id)) return null;
+    return rec;
   } catch {
     return null;
   }

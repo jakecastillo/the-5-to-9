@@ -27,7 +27,7 @@ export function ShiftReportView({
           {model && (
             <Text>
               shipped {model.progress.closed} · ready {model.readyCount} · blocked{' '}
-              {model.counts.blocked}
+              {model.counts.blocked ?? '?'}
             </Text>
           )}
           {model?.gate && (

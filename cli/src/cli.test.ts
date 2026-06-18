@@ -247,6 +247,42 @@ test('gate approve with the CORRECT token → 0, approved resolution written', a
   expect(readResolution(p.id, { stateDir: stateDirOf(repo) })?.approved).toBe(true);
 });
 
+// ── Bug 6: --backend validated ────────────────────────────────────────────────
+
+test('run --backend unknown → nonzero + error message, driver NOT spawned', async () => {
+  const repo = mkdtempSync(join(tmpdir(), 'f9-cli-'));
+  await runCli(['clock-in', 'ship X', '--no-branch'], capture().io, deps(repo));
+  const c = capture();
+  const startRun = vi.fn(async () => ({ pid: 1, journalPath: 'x', detached: true as const }));
+  const code = await runCli(['run', '--backend', 'notabackend'], c.io, { ...deps(repo), startRun });
+  expect(code).not.toBe(0);
+  expect(c.err()).toMatch(/backend/i);
+  // INVARIANT: an invalid backend must never dispatch to the driver.
+  expect(startRun).not.toHaveBeenCalled();
+});
+
+test('run --backend claude (valid) → dispatches to driver', async () => {
+  const repo = mkdtempSync(join(tmpdir(), 'f9-cli-'));
+  await runCli(['clock-in', 'ship X', '--no-branch'], capture().io, deps(repo));
+  const c = capture();
+  const startRun: NonNullable<CliDeps['startRun']> = vi.fn(async () => ({
+    pid: 99,
+    journalPath: 'j',
+    detached: true as const,
+  }));
+  const code = await runCli(['run', '--backend', 'claude'], c.io, { ...deps(repo), startRun });
+  expect(code).toBe(0);
+  expect(startRun).toHaveBeenCalledTimes(1);
+});
+
+test('doctor --backend unknown → nonzero + error message', async () => {
+  const repo = mkdtempSync(join(tmpdir(), 'f9-cli-'));
+  const c = capture();
+  const code = await runCli(['doctor', '--backend', 'notabackend'], c.io, deps(repo));
+  expect(code).not.toBe(0);
+  expect(c.err()).toMatch(/backend/i);
+});
+
 test('gate deny → 0, denied resolution written', async () => {
   const repo = mkdtempSync(join(tmpdir(), 'f9-cli-'));
   const p = requestConsent(

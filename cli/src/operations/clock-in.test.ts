@@ -68,6 +68,21 @@ test('clockIn already on a shift branch keeps it', async () => {
   expect(res.branch).toBe('the-5-to-9/shift-20260101');
 });
 
+// ── Bug 2: state quote-unescape round-trip ───────────────────────────────────
+
+test('clockIn goal with embedded double-quotes round-trips correctly via readShiftState', async () => {
+  // The writer escapes: goal -> \"goal\". The reader must unescape so the
+  // value that comes back is the exact original string.
+  const repo = freshRepo();
+  const original = 'ship "the" thing — it\'s "great"';
+  await clockIn(original, { cwd: repo, noBranch: true });
+  const stateDir = join(repo, STATE);
+  const { readShiftState } = await import('../state.ts');
+  const s = readShiftState(stateDir);
+  // INVARIANT: the goal read back must equal the original verbatim.
+  expect(s.goal).toBe(original);
+});
+
 test('clockIn in a non-git dir warns and still writes state (no throw)', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'f9-clockin-nogit-'));
   const res = await clockIn('ship X', { cwd: dir });
