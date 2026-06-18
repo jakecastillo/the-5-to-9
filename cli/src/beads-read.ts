@@ -15,7 +15,9 @@ export interface BeadsRead {
   available(): boolean;
   ready(): Promise<BeadLite[]>;
   list(status: 'in_progress' | 'blocked'): Promise<BeadLite[]>;
-  count(status: string): Promise<number>;
+  /** Returns the count for the given status, or null when the bd invocation
+   * fails. null is distinguishable from a real empty backlog (0). */
+  count(status: string): Promise<number | null>;
   /** The number of ready beads — counts `bd ready --json` occurrences, NOT
    * `bd count --status ready` (which is always 0; "ready" is a view, not a status). */
   readyCount(): Promise<number>;
@@ -96,14 +98,16 @@ export function makeBeadsRead(exec: ExecFn = realExec, opts: MakeOpts = {}): Bea
     available: () => present,
     ready: () => readList(['ready', '--json']),
     list: (status) => readList(['list', `--status=${status}`, '--json']),
-    async count(status: string): Promise<number> {
+    async count(status: string): Promise<number | null> {
       if (!present) return 0;
+      // Failures return null — distinguishable from a genuine empty count (0).
+      // Only the legitimate "bd ran and reported 0" path returns 0.
       try {
         const out = await run(['count', '--status', status]);
         const m = out.match(/\d+/);
         return m ? Number.parseInt(m[0], 10) : 0;
       } catch {
-        return 0;
+        return null;
       }
     },
     async readyCount(): Promise<number> {

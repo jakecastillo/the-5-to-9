@@ -68,9 +68,11 @@ function renderStatus(view: Awaited<ReturnType<typeof status>>): string {
   }
   const g = view.gate;
   lines.push(g ? `gate:      ${g.color} (${g.count} groups) — ${g.ts}` : 'gate:      n/a');
+  // counts are null when bd failed (not a real 0) — display '?' to surface the error.
+  const c = view.counts;
   lines.push(
-    `backlog:   ready ${view.readyCount} · in_progress ${view.counts.inProgress} · ` +
-      `blocked ${view.counts.blocked} · closed ${view.counts.closed}`,
+    `backlog:   ready ${view.readyCount} · in_progress ${c.inProgress ?? '?'} · ` +
+      `blocked ${c.blocked ?? '?'} · closed ${c.closed ?? '?'}`,
   );
   return `${lines.join('\n')}\n`;
 }

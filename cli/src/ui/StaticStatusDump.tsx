@@ -52,8 +52,8 @@ export function StaticStatusDump({ model }: { model: DashboardModel | null }): R
       </Text>
       <Text>gate: {g ? `${g.color} ${g.count} groups (${g.ts})` : 'n/a'}</Text>
       <Text>
-        backlog: ready {model.readyCount} · in_progress {model.counts.inProgress} · blocked{' '}
-        {model.counts.blocked} · closed {model.counts.closed}
+        backlog: ready {model.readyCount} · in_progress {model.counts.inProgress ?? '?'} · blocked{' '}
+        {model.counts.blocked ?? '?'} · closed {model.counts.closed ?? '?'}
       </Text>
       <Text>
         progress: {model.progress.closed}/{model.progress.total} ({model.progress.pct}%)

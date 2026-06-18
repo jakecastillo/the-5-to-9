@@ -55,7 +55,8 @@ export async function getDashboardModel(deps: OpDeps = {}): Promise<DashboardMod
     beads.list('in_progress'),
     beads.list('blocked'),
   ]);
-  const closed = view.counts.closed;
+  // null means bd failed — treat as 0 for progress math (can't know the true count).
+  const closed = view.counts.closed ?? 0;
   const total = closed + ready.length + inProgress.length + blocked.length;
   const pct = total > 0 ? Math.floor((closed * 100) / total) : 0;
 

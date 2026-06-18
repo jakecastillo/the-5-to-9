@@ -6,7 +6,8 @@ import { type GateMarker, type ShiftState, readGateMarker, readShiftState } from
 export interface StatusView {
   state: ShiftState;
   readyCount: number;
-  counts: { closed: number; inProgress: number; blocked: number };
+  /** Count per status. null means the bd invocation failed (not a real 0). */
+  counts: { closed: number | null; inProgress: number | null; blocked: number | null };
   gate: GateMarker | null;
 }
 
