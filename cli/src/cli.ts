@@ -6,7 +6,7 @@ import { clockOut } from './operations/clock-out.ts';
 import { getDashboardModel } from './operations/dashboard-model.ts';
 import { doctor } from './operations/doctor.ts';
 import { gateApprove, gateDeny, gatePending } from './operations/gate.ts';
-import { startRun } from './operations/run.ts';
+import { type RunHandle, type RunOpts, startRun as defaultStartRun } from './operations/run.ts';
 import { status } from './operations/status.ts';
 import { stateDir as defaultStateDir } from './paths.ts';
 import { launchTui as defaultLaunchTui } from './ui/launch.ts';
@@ -24,9 +24,30 @@ export interface CliDeps {
   cwd?: string;
   /** Launch the interactive TUI (injectable so tests don't render Ink). */
   launchTui?: () => Promise<void>;
+  /** Start a detached driver run (injectable so tests don't spawn the driver). */
+  startRun?: (opts: RunOpts, deps?: { stateDir: string; branch: string }) => Promise<RunHandle>;
 }
 
 const VERSION = '0.2.0';
+
+/**
+ * Parse a CLI numeric flag, rejecting anything that would become NaN (or, when a
+ * positive integer is required, anything ≤ 0 or non-integer). Throws a clear,
+ * flag-named error so runCli maps it to a nonzero exit and the driver is never
+ * handed a NaN. Returns undefined when the flag was omitted.
+ */
+function parsePositiveIntFlag(raw: string | undefined, flag: string): number | undefined {
+  if (raw == null) return undefined;
+  const n = Number(raw);
+  if (Number.isNaN(n) || !Number.isInteger(n) || n <= 0) {
+    throw new CommanderError(
+      1,
+      'cli.invalidNumber',
+      `error: ${flag} must be a positive integer (got ${JSON.stringify(raw)})`,
+    );
+  }
+  return n;
+}
 
 function resolveDeps(deps: CliDeps) {
   const beads = deps.beads ?? makeBeadsRead();
@@ -128,6 +149,7 @@ function buildProgram(io: Io, deps: CliDeps): Command {
       );
     });
 
+  const startRun = deps.startRun ?? defaultStartRun;
   program
     .command('run')
     .description('start a detached driver run')
@@ -135,15 +157,17 @@ function buildProgram(io: Io, deps: CliDeps): Command {
     .option('--backend <name>', 'claude | codex | api')
     .option('-K, --concurrency <n>', 'worker pool size')
     .action(async (opts: { maxIterations?: string; backend?: string; concurrency?: string }) => {
+      // Validate numeric flags BEFORE any side effect — a NaN/≤0 must never reach
+      // the driver. parsePositiveIntFlag throws a flag-named CommanderError that
+      // runCli maps to a nonzero exit; startRun is never called on bad input.
+      const maxIterations = parsePositiveIntFlag(opts.maxIterations, '--max-iterations');
+      const concurrency = parsePositiveIntFlag(opts.concurrency, '--concurrency');
+
       const s = await status({ beads, stateDir });
       const backend =
         (opts.backend as 'claude' | 'codex' | 'api' | undefined) ?? effectiveBackend();
       const handle = await startRun(
-        {
-          maxIterations: opts.maxIterations ? Number(opts.maxIterations) : undefined,
-          backend,
-          concurrency: opts.concurrency ? Number(opts.concurrency) : undefined,
-        },
+        { maxIterations, backend, concurrency },
         { stateDir, branch: s.state.branch || 'current' },
       );
       io.out(`run started — pid ${handle.pid}\njournal: ${handle.journalPath}\n`);
@@ -247,6 +271,10 @@ export async function runCli(
       // --help / --version are surfaced as a clean exit-0 by commander.
       if (err.code === 'commander.helpDisplayed' || err.code === 'commander.version') return 0;
       if (err.code === 'commander.help') return 0;
+      // Errors WE throw from inside an action (e.g. invalid numeric flags) are not
+      // auto-written by commander's exitOverride — surface their message to stderr
+      // so the caller sees which flag was wrong.
+      if (err.code === 'cli.invalidNumber') io.err(`${err.message}\n`);
       // Unknown command / bad option: commander has already written its error +
       // help to writeErr; map to a nonzero code.
       return err.exitCode || 1;
