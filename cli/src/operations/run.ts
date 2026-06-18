@@ -50,7 +50,10 @@ function resolveDriverEntry(): string {
 
 function safeBranch(branch: string): string {
   // Keep the slash structure but strip anything path-hostile.
-  return branch.replace(/[^A-Za-z0-9/_.-]/g, '_');
+  const sanitized = branch.replace(/[^A-Za-z0-9/_.-]/g, '_');
+  // An empty or all-illegal name collapses to '' → use 'current' to avoid a
+  // bare runs/ path component that collides with other branches.
+  return sanitized || 'current';
 }
 
 /**
