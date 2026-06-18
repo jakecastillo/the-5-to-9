@@ -8,11 +8,21 @@
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 [![Discussions](https://img.shields.io/badge/Discussions-join-blueviolet.svg)](https://github.com/jakecastillo/the-5-to-9/discussions)
 
-The 5 to 9 is a **cross-tool AI night-shift crew** — shipped today as a Claude Code plugin over a deliberately portable core (`AGENTS.md` + skills + bash scripts + [beads](https://github.com/steveyegge/beads) + MCP) that already runs under Codex full-auto and other AGENTS.md-aware agents (native plugin wiring for Codex/Cursor is [phase-2](#status)). It clocks in a crew of role-agents to work a beads backlog in parallel and ralph-loop a repo to done — hands-off, with hard gates only on irreversible actions. You hand it a goal, it runs a tight service loop on a dedicated shift branch, and you read the shift report in the morning. Funny on the surface, rigorous underneath.
+> 🌙 **Hand it a goal before you log off. Read the shift report in the morning.**
+
+The 5 to 9 is an autonomous **AI night-shift crew** for your repo. It clocks in a small team of role-agents — a developer, an independent QA inspector, a security reviewer, a merge gate — that work a [beads](https://github.com/steveyegge/beads) backlog in parallel and ralph-loop your code to done on a dedicated shift branch. Hands-off, test-gated, with hard stops only on irreversible actions. Funny on the surface, rigorous underneath.
+
+**Two ways to run it** — as a Claude Code plugin (`/clock-in`), or as a standalone npm CLI that needs no Claude Code at all:
+
+```bash
+npx the-5-to-9 clock-in "ship the thing"      # or install globally: npm i -g the-5-to-9
+```
+
+Under the hood it's a deliberately portable core (`AGENTS.md` + skills + bash + beads + MCP) that also runs under Codex full-auto and other AGENTS.md-aware agents (native Codex/Cursor plugin wiring is [phase-2](#status)).
 
 See **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** for the crew topology, the service loop, the safety gate, and the cross-tool design — with diagrams. For where the crew runs today (Claude CLI/App, Codex CLI/App) and what each surface gets, see **[docs/SURFACES.md](docs/SURFACES.md)**.
 
-> Status: **v0.2.0, early/experimental.** Use with caution and keep an eye on long runs (see [Status](#status)).
+> Status: **v0.3.0, early/experimental.** Use with caution and keep an eye on long runs (see [Status](#status)).
 
 ---
 
@@ -189,7 +199,7 @@ bash tests/validate-plugin.sh   # must exit 0; CI runs it
 
 ## Status
 
-**v0.2.0 — early and experimental.** It works, but treat it like a new hire on the night shift: capable, worth watching. Use with caution, and **monitor long runs** — the fresh-process loop avoids context rot, but you still want eyes on it before you trust it with a big backlog unattended.
+**v0.3.0 — early and experimental.** It works, but treat it like a new hire on the night shift: capable, worth watching. Use with caution, and **monitor long runs** — the fresh-process loop avoids context rot, but you still want eyes on it before you trust it with a big backlog unattended.
 
 The **markdown plugin crew is the primary runtime.** There's also an experimental,
 secondary **TypeScript driver under [`driver/`](driver/)** — a thin deterministic

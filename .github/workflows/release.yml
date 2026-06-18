@@ -1,0 +1,87 @@
+name: release
+
+# Tag-triggered release. Pushing an annotated `vX.Y.Z` tag IS the human gate on this
+# irreversible outward action — consistent with The 5 to 9's own rule that a human must
+# authorize anything irreversible. The job re-runs the full validate gate (red = no
+# publish), asserts the tag matches the manifests, publishes the CLI to npm with a
+# provenance attestation, and cuts a GitHub Release. It never fires on a branch push,
+# only on tags, so it can't publish by accident.
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write # create the GitHub Release
+  id-token: write # npm provenance attestation (supply-chain)
+
+# One release per tag at a time.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      # Same toolchain as validate.yml: pnpm BEFORE node so the node cache resolves to it.
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          # Writes an .npmrc that wires NODE_AUTH_TOKEN to the public registry for publish.
+          registry-url: https://registry.npmjs.org
+
+      - name: Ensure jq is available
+        run: sudo apt-get install -y jq || true
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run the validate gate (red = no release)
+        # The same gate the crew runs locally — 21 check groups incl. version-consistency.
+        run: bash tests/validate-plugin.sh
+
+      - name: Assert the tag matches the package version
+        # Closes a gap the consistency gate can't see: the git tag must equal the manifest
+        # version, so `git tag v9.9.9` on 0.3.0 sources fails loudly instead of mis-publishing.
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          pkg="$(jq -r .version cli/package.json)"
+          if [ "$tag" != "$pkg" ]; then
+            echo "::error::tag '$GITHUB_REF_NAME' (=$tag) != cli/package.json version '$pkg' — bump the manifests to match the tag, or retag."
+            exit 1
+          fi
+          echo "tag and package agree on $pkg"
+
+      - name: Publish to npm (with provenance)
+        # `prepublishOnly` rebuilds dist in this clean checkout; tsup bundles the driver,
+        # so the published tarball is self-contained (no workspace dep). --no-git-checks
+        # because the tag checkout is a detached HEAD.
+        run: pnpm --filter the-5-to-9 publish --access public --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_CONFIG_PROVENANCE: 'true'
+
+      - name: Create the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ver="${GITHUB_REF_NAME#v}"
+          # Pull this version's section out of CHANGELOG.md (between its header and the next).
+          notes="$(awk -v v="$ver" '$0 ~ "^## \\[" v "\\]" {f=1; next} /^## \[/ {f=0} f' CHANGELOG.md)"
+          if [ -z "$notes" ]; then
+            gh release create "$GITHUB_REF_NAME" --title "The 5 to 9 $GITHUB_REF_NAME" --generate-notes
+          else
+            gh release create "$GITHUB_REF_NAME" --title "The 5 to 9 $GITHUB_REF_NAME" --notes "$notes"
+          fi
