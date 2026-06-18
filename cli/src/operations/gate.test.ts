@@ -23,7 +23,7 @@ test('gatePending skips pending records whose id contains path-hostile chars', (
   // contains a path-hostile fragment. gate.ts must not surface it.
   const filenameId = 'safe-filename-id';
   const maliciousPayload = JSON.stringify({
-    id: '../etc/passwd',   // JSON id mismatches the filename-derived id
+    id: '../etc/passwd', // JSON id mismatches the filename-derived id
     command: 'gh release create evil',
     category: 'publish',
     beadId: null,
