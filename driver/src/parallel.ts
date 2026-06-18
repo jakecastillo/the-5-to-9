@@ -85,6 +85,15 @@ export async function runParallelTick(d: ParallelTickDeps): Promise<TickOutcome>
 
         const dealerOut = await d.dealer.run(specFor(bead, 'dealer', worktree));
         d.ledger.add(dealerOut.costUsd);
+        // Mirror K=1 observability: journal + log the dispatch so parallel runs are
+        // observable the same way the single-bead tick is (parity with orchestrator.ts).
+        await d.journal.append({ type: 'dispatch', beadId: bead.id, role: 'dealer' });
+        await d.log.write({
+          kind: 'dispatch',
+          beadId: bead.id,
+          role: 'dealer',
+          costUsd: dealerOut.costUsd,
+        });
 
         // ── Consent gate + perform-on-approve (Phase 1c) ───────────────────────
         // IDENTICAL to the K=1 path: the SAME shared runGate (gate-consent.ts) is
@@ -108,6 +117,8 @@ export async function runParallelTick(d: ParallelTickDeps): Promise<TickOutcome>
 
         const auditOut = await d.auditor.run(specFor(bead, 'auditor', worktree));
         d.ledger.add(auditOut.costUsd);
+        // Mirror K=1 observability: log the audit result so parallel runs are observable.
+        await d.log.write({ kind: 'audit', beadId: bead.id, status: auditOut.status });
         const ok = validateWorkerOutcome(auditOut).ok && auditOut.status === 'done';
         return { bead, branch, worktree, ok, reason: ok ? 'pass' : 'audit-failed' };
       } catch (err) {

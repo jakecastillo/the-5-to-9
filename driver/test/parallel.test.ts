@@ -742,3 +742,90 @@ test('parallel gate is PER-BEAD: a denied bead stays open while an independent b
     assert.deepEqual(r.closedIds, ['b'], "only the independent benign bead 'b' closes");
   });
 });
+
+// ── Bug fix: parallel tick missing dispatch/audit observability (bead uts) ──────
+//
+// The K>=2 path must emit the SAME journal + log records as the K=1 path:
+//   - journal 'dispatch' entry after dealer.run
+//   - log 'dispatch' record (kind, beadId, role, costUsd) after dealer.run
+//   - log 'audit' record (kind, beadId, status) after auditor.run
+// These are required for observability parity between K=1 and K>=2.
+
+test('parallel tick: successful tick journals dispatch and writes dispatch+audit log records for each bead', async () => {
+  await withTick(async (dir) => {
+    const journalEntries: { type: string; beadId?: string }[] = [];
+    const logRecords: Record<string, unknown>[] = [];
+
+    const { fn } = fakeExec(readyAB);
+
+    // Proxy the journal to capture all appended entries
+    const realJournal = new Journal(join(dir, 'journal.jsonl'));
+    const journalProxy = new Proxy(realJournal, {
+      get(target, prop) {
+        if (prop === 'append') {
+          return async (e: { type: string; beadId?: string }) => {
+            journalEntries.push({ type: e.type, beadId: e.beadId });
+            return target.append(e as Parameters<typeof target.append>[0]);
+          };
+        }
+        return (target as unknown as Record<string | symbol, unknown>)[prop];
+      },
+    });
+
+    // Proxy the log to capture all written records
+    const realLog = new RunLog(join(dir, 'events.jsonl'));
+    const logProxy = new Proxy(realLog, {
+      get(target, prop) {
+        if (prop === 'write') {
+          return async (r: Record<string, unknown>) => {
+            logRecords.push(r);
+            return target.write(r);
+          };
+        }
+        return (target as unknown as Record<string | symbol, unknown>)[prop];
+      },
+    });
+
+    const d: ParallelTickDeps = {
+      beads: new Beads(fn, new WriteQueue()),
+      worktrees: new Worktrees(fn, dir),
+      journal: journalProxy as Journal,
+      log: logProxy as RunLog,
+      ledger: new BudgetLedger(10, 0),
+      dealer: new MockAdapter({ a: out('a', 'dealer'), b: out('b', 'dealer') }),
+      auditor: new MockAdapter({ a: out('a', 'auditor'), b: out('b', 'auditor') }),
+      mechanicalGate: async () => ({ green: true }),
+      k: 2,
+      baseBranch: 'main',
+    };
+
+    const r = await runParallelTick(d);
+    assert.deepEqual(r.closedIds.sort(), ['a', 'b']);
+
+    // Each bead must have a 'dispatch' journal entry
+    for (const id of ['a', 'b']) {
+      assert.ok(
+        journalEntries.some((e) => e.type === 'dispatch' && e.beadId === id),
+        `journal must have dispatch entry for bead '${id}'; got: ${JSON.stringify(journalEntries)}`,
+      );
+    }
+
+    // Each bead must have a 'dispatch' log record
+    for (const id of ['a', 'b']) {
+      assert.ok(
+        logRecords.some(
+          (rec) => rec.kind === 'dispatch' && rec.beadId === id && rec.role === 'dealer',
+        ),
+        `log must have dispatch record for bead '${id}'; got: ${JSON.stringify(logRecords)}`,
+      );
+    }
+
+    // Each bead must have an 'audit' log record
+    for (const id of ['a', 'b']) {
+      assert.ok(
+        logRecords.some((rec) => rec.kind === 'audit' && rec.beadId === id),
+        `log must have audit record for bead '${id}'; got: ${JSON.stringify(logRecords)}`,
+      );
+    }
+  });
+});
