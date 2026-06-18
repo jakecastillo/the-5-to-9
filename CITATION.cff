@@ -12,7 +12,7 @@ authors:
 repository-code: "https://github.com/jakecastillo/the-5-to-9"
 url: "https://github.com/jakecastillo/the-5-to-9"
 license: MIT
-version: 0.2.0
+version: 0.3.0
 date-released: "2026-06-16"
 keywords:
   - orchestration

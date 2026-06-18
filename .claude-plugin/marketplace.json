@@ -8,7 +8,7 @@
     {
       "name": "the-5-to-9",
       "description": "Clock in a full night-shift crew that works a beads backlog in parallel and ralph-loops your repo to done.",
-      "version": "0.2.0",
+      "version": "0.3.0",
       "source": "./",
       "author": {
         "name": "jakecastillo"

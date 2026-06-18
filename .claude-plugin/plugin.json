@@ -1,6 +1,6 @@
 {
   "name": "the-5-to-9",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Clock in a full night-shift crew of AI role-agents that refine goals, work a beads backlog in parallel, and ralph-loop your repo to done — hands-off, with hard gates only on irreversible actions.",
   "author": {
     "name": "jakecastillo"

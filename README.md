@@ -4,7 +4,7 @@
 
 [![validate](https://github.com/jakecastillo/the-5-to-9/actions/workflows/validate.yml/badge.svg)](https://github.com/jakecastillo/the-5-to-9/actions/workflows/validate.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.2.0-orange.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.3.0-orange.svg)](CHANGELOG.md)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 [![Discussions](https://img.shields.io/badge/Discussions-join-blueviolet.svg)](https://github.com/jakecastillo/the-5-to-9/discussions)
 

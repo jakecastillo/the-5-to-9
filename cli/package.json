@@ -1,10 +1,13 @@
 {
   "name": "the-5-to-9",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "type": "module",
   "bin": {
     "the-5-to-9": "dist/bin.js"
   },
+  "files": [
+    "dist"
+  ],
   "engines": {
     "node": ">=20.19"
   },
@@ -12,11 +15,11 @@
     "typecheck": "tsc --noEmit",
     "lint": "biome check src",
     "test": "vitest run",
-    "build": "tsup"
+    "build": "tsup",
+    "prepublishOnly": "pnpm build"
   },
   "dependencies": {
     "@inkjs/ui": "^2.0.0",
-    "@the-5-to-9/driver": "workspace:*",
     "commander": "^14.0.0",
     "ink": "^5.2.0",
     "ink-spinner": "^5.0.0",
@@ -24,6 +27,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
+    "@the-5-to-9/driver": "workspace:*",
     "@types/node": "^22.0.0",
     "@types/react": "^18.3.0",
     "ink-testing-library": "^4.0.0",

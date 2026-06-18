@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.3.0] — 2026-06-17
+
 The crew steps out of Claude Code: a standalone `the-5-to-9` CLI and a live interactive
 TUI now drive a shift from your own terminal, the irreversible-action gate grew an
 interactive consent loop, and a usage & workflow refinement pass kept the docs honest.
@@ -42,6 +46,13 @@ interactive consent loop, and a usage & workflow refinement pass kept the docs h
 
 ### Fixed
 
+- **Audit-shift hardening (23 fixes across 7 areas)** — the TUI restores the alt-screen even when
+  `render()` throws; CLI numeric flags and `--backend` are validated before dispatch; the parallel
+  tick no longer orphans worktrees or claims on a mid-tick throw; consent `readPending` rejects
+  id-mismatched (tampered) records; the beads count surfaces a `bd` failure instead of a silent `0`;
+  plus cli/ui correctness (real follow toggle, O(1) tail ring buffer, run double-start guard) and a
+  CI fix so the driver/cli test groups install Node + pnpm and actually run. Gate-adjacent changes
+  were Eye-in-the-Sky reviewed; the gate stayed GREEN throughout.
 - **Identity bleed + data leak between The 5 to 9 and the target repo** — a two-directional
   isolation fix. The SessionStart hook is now quiet by default (it injects context only when a
   shift is active; idle sessions get nothing, and prereq preflight moved to clock-in). A shift
