@@ -144,6 +144,12 @@ export interface CheckpointResult {
   skipped: boolean;
   /** The resolution, when consent was requested. */
   resolution?: Resolution;
+  /**
+   * When set, a journal-append threw during an otherwise-approved action. The
+   * checkpoint is still fail-closed (proceed:false, skipped:true) — this field
+   * makes the cause observable so callers can log/alert rather than silently deny.
+   */
+  journalError?: string;
 }
 
 /**
@@ -183,8 +189,9 @@ export async function consentCheckpoint(
         pollMs: deps.pollMs,
       }));
 
-  // Self-default-deny: ANY failure requesting/awaiting/journaling consent must NOT
-  // proceed — the checkpoint never relies on its caller to fail closed.
+  // Self-default-deny: ANY failure requesting/awaiting consent must NOT proceed
+  // — the checkpoint never relies on its caller to fail closed.
+  let resolution: Resolution;
   try {
     const pending = request({
       command: action.command,
@@ -192,8 +199,15 @@ export async function consentCheckpoint(
       beadId: action.beadId ?? null,
       role: action.role ?? null,
     });
-    const resolution = await await_(pending.id);
+    resolution = await await_(pending.id);
+  } catch {
+    return { proceed: false, skipped: true };
+  }
 
+  // Journal the gate event. A journal failure is fail-closed (deny) but the
+  // reason is surfaced via journalError so callers can observe it rather than
+  // silently treating it as a plain deny.
+  try {
     await deps.journal.append({
       type: 'gate',
       beadId: action.beadId ?? undefined,
@@ -203,14 +217,18 @@ export async function consentCheckpoint(
       approved: resolution.approved === true,
       resolvedAt: resolution.resolvedAt,
     });
-
-    // Proceed ONLY on an explicit boolean-true approval.
-    if (resolution.approved === true) {
-      return { proceed: true, skipped: false, resolution };
-    }
-    // Fail-closed: denied or timed out → skip the action, do not proceed.
-    return { proceed: false, skipped: true, resolution };
-  } catch {
-    return { proceed: false, skipped: true };
+  } catch (err) {
+    return {
+      proceed: false,
+      skipped: true,
+      journalError: (err as Error).message,
+    };
   }
+
+  // Proceed ONLY on an explicit boolean-true approval.
+  if (resolution.approved === true) {
+    return { proceed: true, skipped: false, resolution };
+  }
+  // Fail-closed: denied or timed out → skip the action, do not proceed.
+  return { proceed: false, skipped: true, resolution };
 }
