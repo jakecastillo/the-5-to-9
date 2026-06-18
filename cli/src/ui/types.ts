@@ -28,8 +28,8 @@ export interface GateEvent {
 
 /**
  * The single top-level TUI state object. The poller diffs the polled `model`
- * in place; selection/scroll/filter/modal live here separately so a background
- * tick never yanks the cursor (the lazydocker rule).
+ * in place; selection/filter/modal live here separately so a background tick
+ * never yanks the cursor (the lazydocker rule).
  */
 export interface AppState {
   /** Last-known-good polled dashboard data (null until the first poll). */
@@ -40,8 +40,6 @@ export interface AppState {
   focusedPane: Pane;
   /** The currently selected bead id (preserved across polls). */
   selectedBeadId: string | null;
-  /** Scroll offset of the focused list (preserved across polls). */
-  scrollOffset: number;
   /** The backlog filter string (empty = no filter). */
   filter: string;
   /** The active modal, or null. */
@@ -50,6 +48,8 @@ export interface AppState {
   gate: GateEvent | null;
   /** Whether a run is currently being streamed. */
   running: boolean;
+  /** Whether the Run Stream auto-scrolls to the tail (follow mode). */
+  follow: boolean;
 }
 
 /** The default initial UI state (no data yet, Status focused). */
@@ -59,10 +59,10 @@ export function initialState(): AppState {
     error: null,
     focusedPane: 'status',
     selectedBeadId: null,
-    scrollOffset: 0,
     filter: '',
     modal: null,
     gate: null,
     running: false,
+    follow: true,
   };
 }

@@ -8,7 +8,7 @@ export interface CliConfig {
   maxIterations?: number | 'uncapped';
 }
 
-const BACKENDS = ['claude', 'codex', 'api'] as const;
+export const BACKENDS = ['claude', 'codex', 'api'] as const;
 
 /** `$XDG_CONFIG_HOME/the-5-to-9/config.json`, falling back to `~/.config/...`. */
 export function configPath(): string {

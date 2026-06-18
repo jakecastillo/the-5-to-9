@@ -62,3 +62,22 @@ test('startRun without maxIterations omits the cap flag (uncapped run)', async (
   expect(flat).toContain('--backend codex');
   expect(flat).not.toContain('--max-iterations');
 });
+
+// ── Bug 1: safeBranch empty-guard ────────────────────────────────────────────
+
+test('safeBranch: empty branch name → journal path uses "current" (no empty segment)', async () => {
+  const { spawn } = fakeSpawn();
+  const stateDir = mkdtempSync(join(tmpdir(), 'f9-run-'));
+  const handle = await startRun({ backend: 'claude' }, { spawn, stateDir, branch: '' });
+  expect(handle.journalPath).toContain(join('runs', 'current'));
+});
+
+test('safeBranch: undefined branch → journal path uses "current"', async () => {
+  // When deps.branch is omitted (undefined), safeBranch should fall back to 'current'
+  // not an empty string that collides with other branches.
+  const { spawn } = fakeSpawn();
+  const stateDir = mkdtempSync(join(tmpdir(), 'f9-run-'));
+  // branch is omitted → deps.branch ?? 'current' feeds 'current' into safeBranch
+  const handle = await startRun({ backend: 'claude' }, { spawn, stateDir });
+  expect(handle.journalPath).toContain(join('runs', 'current'));
+});

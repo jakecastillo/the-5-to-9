@@ -10,9 +10,18 @@ export class Worktrees {
     private repoRoot: string,
   ) {}
 
+  /**
+   * The deterministic worktree path for a bead — knowable WITHOUT creating it.
+   * Lets a caller schedule cleanup for a worktree before `add` runs, so a partial
+   * `git worktree add` failure can still be removed (no orphan).
+   */
+  pathFor(beadId: string): string {
+    return `${this.repoRoot}/.f9-worktrees/wt-${beadId}`;
+  }
+
   /** Create an isolated worktree on a fresh branch off HEAD; returns its path. */
   async add(beadId: string, branch: string): Promise<string> {
-    const path = `${this.repoRoot}/.f9-worktrees/wt-${beadId}`;
+    const path = this.pathFor(beadId);
     await this.exec('git', ['worktree', 'add', '-b', branch, path, 'HEAD'], { cwd: this.repoRoot });
     return path;
   }

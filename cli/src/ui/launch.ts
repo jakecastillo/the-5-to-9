@@ -14,6 +14,17 @@ import { StaticStatusDump } from './StaticStatusDump.tsx';
 const ALT_SCREEN_ENTER = '\x1b[?1049h';
 const ALT_SCREEN_LEAVE = '\x1b[?1049l';
 
+/** The slice of ink's `render()` return value this launcher depends on. */
+export interface RenderHandle {
+  waitUntilExit: () => Promise<void>;
+}
+
+/** Injectable renderer (defaults to ink's `render`); lets tests drive without Ink. */
+export type RenderFn = (
+  element: ReturnType<typeof createElement>,
+  options: Parameters<typeof render>[1],
+) => RenderHandle;
+
 export interface LaunchOpts {
   /** Output stream (defaults to process.stdout). */
   stdout?: NodeJS.WriteStream;
@@ -23,6 +34,8 @@ export interface LaunchOpts {
   rawModeSupported?: boolean;
   /** Use the alternate screen buffer (default true; disabled in tests). */
   useAltScreen?: boolean;
+  /** Override the renderer (defaults to ink's `render`); injected by tests. */
+  renderFn?: RenderFn;
 }
 
 /** Probe whether the given stdin supports raw mode (interactive TTY). */
@@ -64,18 +77,21 @@ export async function launchTui(opts: LaunchOpts = {}): Promise<void> {
   }
 
   const useAltScreen = opts.useAltScreen ?? true;
+  const renderFn: RenderFn = opts.renderFn ?? (render as unknown as RenderFn);
   if (useAltScreen) stdout.write(ALT_SCREEN_ENTER);
 
-  const { waitUntilExit } = render(
-    createElement(App, { initial: { model }, rawModeSupported: true }),
-    { stdout, stdin, exitOnCtrlC: false },
-  );
-
   try {
+    // render() itself can throw (e.g. terminal/Ink init failure). Keep it INSIDE
+    // the try so the finally always restores the alt-screen — otherwise a render
+    // throw would leave the terminal stuck in the alternate buffer.
+    const { waitUntilExit } = renderFn(
+      createElement(App, { initial: { model }, rawModeSupported: true }),
+      { stdout, stdin, exitOnCtrlC: false },
+    );
     await waitUntilExit();
   } finally {
     // Deterministic restore: leave the alternate screen so the shift report
-    // prints into normal scrollback. Always runs, even on error.
+    // prints into normal scrollback. Always runs, even on a render/exit error.
     if (useAltScreen) stdout.write(ALT_SCREEN_LEAVE);
   }
 }

@@ -7,11 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-A usage & workflow refinement pass: the docs stop lying about the version, the gate keeps
-them honest, and the two hands-off entrypoints answer `--help` like they should.
+The crew steps out of Claude Code: a standalone `the-5-to-9` CLI and a live interactive
+TUI now drive a shift from your own terminal, the irreversible-action gate grew an
+interactive consent loop, and a usage & workflow refinement pass kept the docs honest.
 
 ### Added
 
+- **Standalone `the-5-to-9` npm CLI** (`cli/`) — a pure-Node command line, installable from
+  npm (`npx the-5-to-9` / `npm i -g the-5-to-9`), that drives the same shift state, beads
+  backlog, and irreversible-action gate as the plugin with no Claude Code required. Subcommands:
+  `clock-in`, `clock-out`, `status`, `dashboard`, `run`, `config get|set`, `doctor`, and a
+  scriptable `gate` (pending / approve / deny) for headless consent.
+- **Interactive Ink TUI** — a live, focusable terminal dashboard (status bar, backlog pane,
+  run-stream pane with bounded tail, clock-in / help / gate modals) over a single-interval
+  poller. Launched by `the-5-to-9 dashboard --watch` or by the bare `the-5-to-9` invocation.
 - **Version-consistency gate** (`tests/check-version-consistency.sh` + `version-consistency-test.sh`,
   wired into `validate-plugin.sh`) — asserts every version-bearing source (both plugin
   manifests, the marketplace + `.agents` codex mirror, `driver/package.json`, `CITATION.cff`,
@@ -21,8 +30,27 @@ them honest, and the two hands-off entrypoints answer `--help` like they should.
   (routing, `--driver`, `--backend`) and exits without invoking either engine, instead of
   silently forwarding `--help` to the bash loop.
 
+### Changed
+
+- **The irreversible-action gate grew an interactive consent loop** — surfaced outward actions
+  now write a default-deny, write-once consent record that a human resolves type-to-confirm
+  (the exact confirm token is bound to the exact command; a wrong token can never approve and
+  awaiting a resolution times out to a DENY, never a silent-allow). On approval the driver
+  performs only the exact approved command (perform-on-approve), and journals the intent ahead
+  of execution so an approved-but-not-yet-run action is resumable. The TUI gate modal and the
+  scriptable `gate` subcommand share one consent contract (single source of truth in `driver/`).
+
 ### Fixed
 
+- **Identity bleed + data leak between The 5 to 9 and the target repo** — a two-directional
+  isolation fix. The SessionStart hook is now quiet by default (it injects context only when a
+  shift is active; idle sessions get nothing, and prereq preflight moved to clock-in). A shift
+  references the target repo, grounds the crew in it, and forbids editing The 5 to 9's own
+  source or the target's identity files; `setup-shift.sh` records and announces the target repo
+  and warns when the resolved target is The 5 to 9's own checkout. State can no longer be
+  committed into the host repo — `setup-shift.sh` adds `.claude/five-to-nine/` to the target's
+  local `.git/info/exclude` (no-clobber), with robust dedup so repeated clock-ins never
+  duplicate the entry even across CRLF / whitespace differences.
 - **Stale version references** — the `.codex-plugin` / `.cursor-plugin` manifests, the README
   badge, and `CITATION.cff` were left at `0.1.0` behind the `0.2.0` release; all unified on the
   shipped version. Version-decoration prose in `CONTRIBUTING.md` / `SUPPORT.md` / `GOVERNANCE.md`

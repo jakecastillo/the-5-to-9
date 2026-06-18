@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { existsSync, mkdtempSync, readdirSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -133,4 +133,32 @@ test('a corrupt pending file is ignored by listPending (fail-closed, no crash)',
   assert.ok(files.length > 0);
   // listPending must not throw even if one record is unparseable.
   assert.doesNotThrow(() => listPending(d));
+});
+
+// ── Bug 5: id mismatch in readPending (security) ──────────────────────────────
+
+test('readPending: pending file whose JSON id mismatches the filename → ignored by listPending', () => {
+  // A tampered pending file where JSON "id" != the filename-derived id must be
+  // treated as corrupt and MUST NOT appear in listPending output.
+  const d = deps();
+  const dir = join(d.stateDir as string, 'consent');
+  mkdirSync(dir, { recursive: true });
+  const filenameId = 'safe-id-abc123';
+  // JSON id is a DIFFERENT id (mismatch attack).
+  const tamperedJson = JSON.stringify({
+    id: 'different-id-xyz',
+    command: 'gh release create v1',
+    category: 'publish',
+    beadId: null,
+    role: null,
+    token: 'gh-abc123',
+    createdAt: new Date().toISOString(),
+  });
+  writeFileSync(join(dir, `${filenameId}.pending.json`), tamperedJson);
+  const pending = listPending(d);
+  // INVARIANT: a mismatched id must not appear — it is treated as corrupt.
+  assert.equal(
+    pending.some((p) => p.id === filenameId || p.id === 'different-id-xyz'),
+    false,
+  );
 });

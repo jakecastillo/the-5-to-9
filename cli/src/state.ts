@@ -48,7 +48,9 @@ function parseFrontmatter(text: string): Record<string, string> {
     if (!m) continue;
     let value = m[2];
     const q = /^"(.*)"$/.exec(value);
-    if (q) value = q[1];
+    // Strip outer quotes and unescape \" → " (symmetric with the writer in
+    // clock-in.ts that does effectiveGoal.replace(/"/g, '\\"')).
+    if (q) value = q[1].replace(/\\"/g, '"');
     out[m[1]] = value;
   }
   return out;

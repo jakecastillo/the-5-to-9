@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { access, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -845,6 +845,47 @@ test('an empty/absent requestedAction → no consent, no gate event, normal clos
     assert.equal(classifyConsulted, false, 'no requestedAction → classifier not even consulted');
     assert.equal(performed.length, 0);
     assert.equal(journal.hasDone('gate', 'b1'), false);
+    assert.equal(r.closed, 'b1');
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+// ── Bug fix: K=1 worktree directory not created before dealer runs (bead uts) ───
+//
+// orchestrator.ts constructs the K=1 worktree path as `${worktreeRoot}/wt-${bead.id}`
+// but never creates the directory. The fix must either call worktrees.add() (preferred,
+// so path construction matches K>=2 via Worktrees.pathFor) or mkdir the path.
+// Either way the directory must exist before dealer.run is called.
+
+test('K=1 tick: worktree directory exists before dealer runs', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'f9orch-wt-'));
+  try {
+    const { fn } = fakeBdExec();
+    let worktreePathSeen: string | null = null;
+    // Intercept dealer.run to capture the worktree path it receives
+    const capturingDealer = {
+      async run(spec: { worktree: string }) {
+        worktreePathSeen = spec.worktree;
+        // At the moment dealer.run is called, the directory MUST already exist
+        await access(spec.worktree); // throws ENOENT if absent
+        return dealerScript.b1;
+      },
+    };
+    const beads = new Beads(fn, new WriteQueue());
+    const r = await runSingleBeadTick({
+      beads,
+      journal: new Journal(join(dir, 'journal.jsonl')),
+      log: new RunLog(join(dir, 'events.jsonl')),
+      ledger: new BudgetLedger(1, 0),
+      dealer: capturingDealer as unknown as import('../src/adapters/mock.ts').MockAdapter,
+      auditor: new MockAdapter(auditorScript),
+      mechanicalGate: async () => ({ green: true }),
+      worktreeRoot: dir,
+      worktrees: makeWorktrees(fn, dir),
+      baseBranch: 'main',
+    });
+    assert.ok(worktreePathSeen !== null, 'dealer.run must have been called');
     assert.equal(r.closed, 'b1');
   } finally {
     await rm(dir, { recursive: true, force: true });

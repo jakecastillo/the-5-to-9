@@ -12,9 +12,15 @@ export interface GateResult {
   message: string;
 }
 
+/** Safe-id pattern — must match driver/src/consent.ts `SAFE_ID`. */
+const GATE_SAFE_ID = /^[A-Za-z0-9_-]+$/;
+
 /** List pending consents as plain text (id · category · command · token). */
 export function gatePending(deps: ConsentDeps = {}): GateResult {
-  const pending = listPending(deps);
+  // Defense-in-depth: filter to ids that are provably safe before surfacing
+  // to the CLI, in case a tampered or corrupt record slips through the primary
+  // isSafeId guard in consent.ts readPending. (Bug-5 secondary layer.)
+  const pending = listPending(deps).filter((p) => GATE_SAFE_ID.test(p.id));
   if (pending.length === 0) {
     return { ok: true, message: 'no pending consent — nothing to approve.' };
   }

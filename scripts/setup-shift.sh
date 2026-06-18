@@ -56,7 +56,22 @@ if f9_have git && git -C "$target_root" rev-parse --git-dir >/dev/null 2>&1; the
   [[ "$git_dir" = /* ]] || git_dir="$target_root/$git_dir"
   mkdir -p "$git_dir/info" 2>/dev/null || true
   exclude="$git_dir/info/exclude"
-  if [[ ! -f "$exclude" ]] || ! grep -qxF '.claude/five-to-nine/' "$exclude" 2>/dev/null; then
+  # Robust dedup: a prior clock-in may have written the entry with a trailing CR
+  # (CRLF checkouts) or stray surrounding whitespace, which a literal `grep -qxF`
+  # misses — so it would append a near-duplicate on every clock-in. Normalize each
+  # line (strip CR, trim leading/trailing blanks) and append only when no EXACT
+  # normalized match is found. POSIX/Git-Bash-safe: a while-read loop + parameter
+  # expansion, no external tools.
+  f9_exclude_has=0
+  if [[ -f "$exclude" ]]; then
+    while IFS= read -r _f9_ln || [[ -n "$_f9_ln" ]]; do
+      _f9_ln="${_f9_ln%$'\r'}"                              # strip trailing CR
+      _f9_ln="${_f9_ln#"${_f9_ln%%[![:space:]]*}"}"         # trim leading blanks
+      _f9_ln="${_f9_ln%"${_f9_ln##*[![:space:]]}"}"         # trim trailing blanks
+      if [[ "$_f9_ln" == '.claude/five-to-nine/' ]]; then f9_exclude_has=1; break; fi
+    done < "$exclude"
+  fi
+  if [[ "$f9_exclude_has" -eq 0 ]]; then
     printf '%s\n' '.claude/five-to-nine/' >> "$exclude" 2>/dev/null \
       && f9_log "excluded .claude/five-to-nine/ from the target's git (local .git/info/exclude — no-clobber)"
   fi

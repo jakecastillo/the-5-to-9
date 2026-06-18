@@ -90,6 +90,40 @@ test('a DENIED irreversible action does NOT proceed, is skipped + recorded + jou
   expect(gate?.approved).toBe(false);
 });
 
+// ── Bug 4: journal-append failure must be observable ─────────────────────────
+
+test('journal-append failure → proceed:false AND journalError set (not silent deny)', async () => {
+  const stateDir = tmpState();
+  const approved: Resolution = {
+    id: 'y',
+    approved: true,
+    token: 'publish',
+    resolvedAt: '2026-06-17T00:00:00Z',
+  };
+  // The journal throws on append — the checkpoint must still deny and surface the reason.
+  const throwingJournal = {
+    append: vi.fn(async () => {
+      throw new Error('disk full');
+    }),
+    events: [],
+  };
+  const res = await consentCheckpoint(
+    { command: 'gh release create v2', beadId: 't59-bug4', role: 'Cage' },
+    {
+      stateDir,
+      journal: throwingJournal,
+      classify: () => ({ denied: true, segment: 'gh release create v2' }),
+      awaitResolution: vi.fn(async () => approved),
+    },
+  );
+  // INVARIANT: fail-closed even when journal throws.
+  expect(res.proceed).toBe(false);
+  expect(res.skipped).toBe(true);
+  // INVARIANT: the journalError must be set so callers can observe the reason.
+  expect(res.journalError).toBeDefined();
+  expect(res.journalError).toContain('disk full');
+});
+
 test('a TIMEOUT (deny via injected clock) skips the action — no real sleeping, no silent-allow', async () => {
   const stateDir = tmpState();
   const journal = fakeJournal();

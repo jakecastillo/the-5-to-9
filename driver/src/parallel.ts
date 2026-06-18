@@ -35,6 +35,23 @@ interface Candidate {
 }
 
 /**
+ * Remove a worktree without letting a failure abort the serialized Phase-2 loop.
+ * Used only on the cleanup (reject) path, where the worktree may be partial or
+ * absent (e.g. `git worktree add` threw mid-creation) — a remove error there must
+ * not orphan the OTHER beads' integration. Logs the swallowed error and moves on.
+ */
+async function removeQuietly(d: ParallelTickDeps, worktree: string): Promise<void> {
+  try {
+    await d.worktrees.remove(worktree);
+  } catch (err) {
+    await d.log.write({
+      kind: 'worktree-remove-failed',
+      reason: err instanceof Error ? err.message : String(err),
+    });
+  }
+}
+
+/**
  * One parallel tick (spec §3.1/§5.2): up to K Dealers run IN PARALLEL over the write-independent
  * frontier (each in its own worktree), each gated + independently audited; then integration is
  * SERIALIZED through the Cage — one merge/close at a time, with the merge-tree backstop re-queuing
@@ -47,17 +64,36 @@ export async function runParallelTick(d: ParallelTickDeps): Promise<TickOutcome>
   const frontier = independentFrontier(ready, { k: d.k });
 
   // Phase 1 — PARALLEL: implement + gate + independently verify each frontier bead in isolation.
-  // Each branch is settled independently so a throw in one bead never orphans another's worktree.
-  const settled = await Promise.allSettled(
+  // EVERY per-bead step — claim, worktree create, dealer, gate, audit — runs inside the try, so a
+  // throw ANYWHERE (even from worktrees.add mid-creation) degrades to a Candidate{ok:false} that
+  // STILL flows into Phase 2 cleanup. No step can orphan a claim or a worktree (b06 class).
+  const candidates: Candidate[] = await Promise.all(
     frontier.map(async (bead): Promise<Candidate> => {
       const branch = `shift/${bead.id}`;
-      await d.journal.append({ type: 'claim', beadId: bead.id });
-      await d.beads.claim(bead.id);
-      const worktree = await d.worktrees.add(bead.id, branch);
+      // The worktree path is deterministic from the bead id (knowable BEFORE creation), so a
+      // partial `git worktree add` failure can still be removed in Phase 2 — no orphaned worktree.
+      const worktree = d.worktrees.pathFor(bead.id);
 
       try {
+        // Resume guard: never re-claim a bead the journal already records as claimed. A crash
+        // after claim but before close must NOT double-claim on the next tick (b06 class).
+        if (!d.journal.hasDone('claim', bead.id)) {
+          await d.journal.append({ type: 'claim', beadId: bead.id });
+          await d.beads.claim(bead.id);
+        }
+        await d.worktrees.add(bead.id, branch);
+
         const dealerOut = await d.dealer.run(specFor(bead, 'dealer', worktree));
         d.ledger.add(dealerOut.costUsd);
+        // Mirror K=1 observability: journal + log the dispatch so parallel runs are
+        // observable the same way the single-bead tick is (parity with orchestrator.ts).
+        await d.journal.append({ type: 'dispatch', beadId: bead.id, role: 'dealer' });
+        await d.log.write({
+          kind: 'dispatch',
+          beadId: bead.id,
+          role: 'dealer',
+          costUsd: dealerOut.costUsd,
+        });
 
         // ── Consent gate + perform-on-approve (Phase 1c) ───────────────────────
         // IDENTICAL to the K=1 path: the SAME shared runGate (gate-consent.ts) is
@@ -81,10 +117,14 @@ export async function runParallelTick(d: ParallelTickDeps): Promise<TickOutcome>
 
         const auditOut = await d.auditor.run(specFor(bead, 'auditor', worktree));
         d.ledger.add(auditOut.costUsd);
+        // Mirror K=1 observability: log the audit result so parallel runs are observable.
+        await d.log.write({ kind: 'audit', beadId: bead.id, status: auditOut.status });
         const ok = validateWorkerOutcome(auditOut).ok && auditOut.status === 'done';
         return { bead, branch, worktree, ok, reason: ok ? 'pass' : 'audit-failed' };
       } catch (err) {
-        // Unexpected throw after worktree was created — degrade to ok:false so Phase 2 cleans up.
+        // Any throw — including from claim or worktrees.add — degrades to ok:false so Phase 2
+        // removes the (possibly partial) worktree and leaves the bead OPEN. Never re-throw here:
+        // a single bead's failure must not abort the other parallel branches or skip cleanup.
         return {
           bead,
           branch,
@@ -95,17 +135,14 @@ export async function runParallelTick(d: ParallelTickDeps): Promise<TickOutcome>
       }
     }),
   );
-  // Flatten settled results: fulfilled carries the Candidate; rejected means the claim/add itself
-  // threw before a worktree existed — there is nothing to clean up for those.
-  const candidates: Candidate[] = settled
-    .filter((s): s is PromiseFulfilledResult<Candidate> => s.status === 'fulfilled')
-    .map((s) => s.value);
 
   // Phase 2 — SERIALIZED: integrate through the single-writer Cage, one at a time (spec §3.2).
   const closedIds: string[] = [];
   for (const c of candidates) {
     if (!c.ok) {
-      await d.worktrees.remove(c.worktree);
+      // Best-effort removal: a failed bead may have a partial/absent worktree (e.g. `add` threw
+      // mid-creation). A remove error here must not abort Phase 2 for the remaining beads.
+      await removeQuietly(d, c.worktree);
       await d.log.write({ kind: 'reject', beadId: c.bead.id, reason: c.reason });
       continue;
     }

@@ -80,10 +80,22 @@ test('when bd is absent, reads degrade gracefully', async () => {
   expect(await beads.list('blocked')).toEqual([]);
 });
 
-test('exec failure → graceful default', async () => {
+// ── Bug 3: count() bd-failure must not masquerade as count 0 ─────────────────
+
+test('count(): bd invocation failure returns null (not 0) — distinguishable from real empty backlog', async () => {
+  // A failing bd invocation must NOT silently return 0 — the caller must be
+  // able to distinguish "bd is broken" from "backlog is genuinely empty".
+  const failing: ExecFn = () => Promise.reject(new Error('bd: command not found'));
+  const beads = makeBeadsRead(failing, { available: true });
+  // INVARIANT: null means "bd failed", 0 means "genuinely 0 beads".
+  expect(await beads.count('closed')).toBeNull();
+});
+
+test('exec failure → ready/list degrade gracefully, count returns null', async () => {
   const failing: ExecFn = () => Promise.reject(new Error('boom'));
   const beads = makeBeadsRead(failing, { available: true });
   expect(await beads.ready()).toEqual([]);
   expect(await beads.readyCount()).toBe(0);
-  expect(await beads.count('closed')).toBe(0);
+  // count returns null on failure — not 0 (the bug it previously masked).
+  expect(await beads.count('closed')).toBeNull();
 });
