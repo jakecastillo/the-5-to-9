@@ -1,3 +1,4 @@
+import { mkdir } from 'node:fs/promises';
 import type { WorkerAdapter } from './adapters/adapter.ts';
 import type { Beads } from './beads.ts';
 import { type GateConsentDeps, runGate } from './gate-consent.ts';
@@ -49,7 +50,11 @@ export async function runSingleBeadTick(d: TickDeps): Promise<TickResult> {
   await d.beads.claim(bead.id);
   await d.log.write({ kind: 'claim', beadId: bead.id });
 
-  const worktree = `${d.worktreeRoot}/wt-${bead.id}`;
+  // Use the shared Worktrees.pathFor so K=1 and K>=2 paths are identical:
+  // `.f9-worktrees/` is a dedicated subdir to keep git-managed worktrees out of
+  // the repo root and to match the deterministic pathFor contract used by K>=2.
+  const worktree = d.worktrees.pathFor(bead.id);
+  await mkdir(worktree, { recursive: true });
 
   // Dealer implements.
   const dealerOut = await d.dealer.run(specFor(bead, 'dealer', worktree));
