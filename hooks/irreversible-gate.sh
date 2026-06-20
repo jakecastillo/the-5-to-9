@@ -63,11 +63,14 @@ fi
 [[ -z "$cmd" ]] && exit 0
 
 # The jq/node paths receive real characters; the no-jq sed extractor leaves JSON
-# escapes literal. Decode \n \t \r -> space so an outward action on a LATER LINE
-# keeps its leading word boundary and can't slip past segmentation (see gate-cases.txt
-# multiline rows). Mapping to whitespace only ever widens a match — the safe direction
-# for a deny-list. The node/jq paths see no literal \n here, so this is a no-op there.
-cmd="$(printf '%s' "$cmd" | sed -e 's/\\n/ /g' -e 's/\\t/ /g' -e 's/\\r/ /g')"
+# escapes literal. Decode the whitespace escapes -> space so an outward action on a
+# LATER LINE keeps its leading word boundary and can't slip past segmentation (see
+# gate-cases.txt multiline rows). Covers both the short forms (\n \t \r) and the
+# unicode whitespace escapes a JSON encoder may emit (u000a/u0009/u000d). Mapping to
+# whitespace only ever widens a match — the safe direction for a deny-list. The node/
+# jq paths see no literal escape here, so this is a no-op there.
+cmd="$(printf '%s' "$cmd" | sed -e 's/\\n/ /g' -e 's/\\t/ /g' -e 's/\\r/ /g' \
+  -e 's/\\u000[aAdD]/ /g' -e 's/\\u0009/ /g')"
 
 # Deny-list of irreversible OUTWARD tool actions (case-insensitive ERE; each rule
 # is anchored at a word boundary so it matches the tool, not a substring). Built

@@ -65,9 +65,24 @@ rc=0
 run_corpus "default"        || rc=1
 run_corpus "bash+no-jq"  F9_GATE_SKIP_NODE=1 F9_NO_JQ=1 || rc=1
 
+# o89: the bash+no-jq fallback must also decode the unicode whitespace escapes a JSON
+# encoder may emit for a newline (backslash-u-000a) instead of the simpler backslash-n.
+# This can't be a plain corpus row — payload_for(jq) re-escapes the backslash — so the
+# payload is built here with a literal backslash (bs) + u000a. node/jq paths already
+# decode it; this pins the fallback.
+bs='\'
+uni_cmd="git status${bs}u000agh release create v1"
+uni_out="$(payload_for "$uni_cmd" | env F9_GATE_SKIP_NODE=1 F9_NO_JQ=1 bash "$GATE" 2>/dev/null)"
+if printf '%s' "$uni_out" | grep -q '"permissionDecision":"deny"'; then
+  printf '  [bash+no-jq] unicode-escaped (\\u000a) outward action: DENY\n'
+else
+  printf '  [bash+no-jq] FAILED: a \\u000a-escaped outward action was NOT denied\n' >&2
+  rc=1
+fi
+
 if [[ "$rc" -eq 0 ]]; then
   total="$(grep -cvE '^[[:space:]]*($|#)' "$CASES")"
-  printf 'gate corpus: %s/%s verdicts correct on both paths (default + bash+no-jq fallback)\n' "$total" "$total"
+  printf 'gate corpus: %s/%s verdicts correct on both paths (default + bash+no-jq fallback) + \\uXXXX check\n' "$total" "$total"
   exit 0
 else
   printf 'gate corpus: FAILED — safety regression (see [path] above)\n' >&2
