@@ -94,6 +94,17 @@ const defaultAdapterFactory: AdapterFactory = (backend: string, exec: ExecFn): W
   return new ClaudeAdapter(exec);
 };
 
+/** Resolve the current checked-out git branch; empty on detached HEAD or any error. */
+async function currentBranch(exec: ExecFn, cwd: string): Promise<string> {
+  try {
+    const { stdout } = await exec('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd });
+    const b = stdout.trim();
+    return b && b !== 'HEAD' ? b : '';
+  } catch {
+    return '';
+  }
+}
+
 /** Optional overrides for main() — used by tests to inject mocks without touching the process. */
 export interface MainOpts {
   /** Override the state directory (default: .claude/five-to-nine). */
@@ -164,6 +175,12 @@ export async function main(
   // 4. Worktrees (git-worktree management, spec §5.2/§8)
   const worktrees = new Worktrees(exec, repoRoot);
 
+  // 4b. Resolve the integration base branch. The crew merges bead branches onto the
+  // SHIFT branch it was launched on — NEVER main/prod (the irreversible-action rule).
+  // Prefer an explicit config value; else the current checked-out branch; never a
+  // silent 'main'. (HEAD is a safe degenerate fallback — still not main.)
+  const baseBranch = cfg.baseBranch || (await currentBranch(exec, repoRoot)) || 'HEAD';
+
   // 5. Adapters: dealer + SEPARATE auditor (author never grades own work, spec §4.1)
   const dealer = adapterFactory(cfg.backend, exec);
   const auditor = adapterFactory(cfg.backend, exec);
@@ -183,7 +200,7 @@ export async function main(
       auditor,
       mechanicalGate: async () => ({ green: true }), // TODO: wire real gate (Slice 3)
       k: cfg.concurrency,
-      baseBranch: 'main',
+      baseBranch,
       // Phase 1c (bead 128): the K>=2 tick gates a surfaced outward action IDENTICALLY
       // to K=1 — the SAME consent contract + single perform site (shared runGate). Any
       // deny/timeout/error (or an indeterminate resume) leaves the bead open (default-deny).
@@ -206,7 +223,7 @@ export async function main(
       mechanicalGate: async () => ({ green: true }), // TODO: wire real gate (Slice 3)
       worktreeRoot,
       worktrees,
-      baseBranch: 'main',
+      baseBranch,
       // Phase 1c: the consent gate performs an APPROVED outward action via this exec
       // (the composition-root exec). The orchestrator's defaults bind requestConsent/
       // awaitResolution/classify to the real consent contract under this stateDir;

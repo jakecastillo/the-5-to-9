@@ -371,6 +371,65 @@ test('K=1 wiring: a surfaced FLAGGED action with no human → times out (gate-de
   }
 });
 
+// ── Bug fix (jnx.2): the driver must integrate onto the SHIFT branch, never main ──
+//
+// main.ts hardcoded baseBranch:'main' for both the K=1 and K>=2 ticks, so the Cage
+// step did `git checkout main && git merge ...` — the crew is NEVER allowed to touch
+// main/prod. The fix resolves the base branch from the current checked-out branch
+// (or an explicit config value), and threads it into both deps.
+
+test('jnx.2: the driver integrates onto the current shift branch, NEVER main', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'f9main-base-'));
+  try {
+    const SHIFT = 'the-5-to-9/shift-20260619';
+    const calls: string[] = [];
+    let readyPool = ['b1'];
+    const exec: ExecFn = async (cmd, args) => {
+      const key = [cmd, ...args].join(' ');
+      calls.push(key);
+      if (key.includes('bd ready')) {
+        const out = readyPool.map((id) => ({ id, status: 'open', inScopeDirs: ['src'] }));
+        readyPool = [];
+        return { stdout: JSON.stringify(out), stderr: '', code: 0 };
+      }
+      // The current checked-out branch is the shift branch — the safe integration base.
+      if (cmd === 'git' && args[0] === 'rev-parse')
+        return { stdout: `${SHIFT}\n`, stderr: '', code: 0 };
+      if (key.startsWith('git checkout') || key.startsWith('git merge')) {
+        return { stdout: '', stderr: '', code: 0 };
+      }
+      return { stdout: '{}', stderr: '', code: 0 };
+    };
+    const adapterFactory = makeAdapterFactory(['b1']);
+    let printed = '';
+    const fakeStdout = {
+      write: (s: string) => {
+        printed += s;
+      },
+    };
+
+    const code = await main(['--backend', 'claude'], exec, adapterFactory, {
+      stateDir: join(dir, '.f9-state'),
+      repoRoot: dir,
+      stdout: fakeStdout as unknown as typeof process.stdout,
+    });
+
+    assert.equal(code, 0, `expected exit 0, got ${code}`);
+    // INVARIANT: the crew NEVER checks out or merges onto main.
+    assert.ok(
+      !calls.some((c) => c === 'git checkout main'),
+      `the driver must NEVER checkout main; calls=${calls.join(' | ')}`,
+    );
+    // It integrates onto the resolved shift branch instead.
+    assert.ok(
+      calls.some((c) => c === `git checkout ${SHIFT}`),
+      `the driver must integrate onto ${SHIFT}; calls=${calls.join(' | ')}`,
+    );
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
 test('fox: --backend claude (K=1) still uses the single-bead tick path (only one bead per tick)', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'f9fox-serial-'));
   try {

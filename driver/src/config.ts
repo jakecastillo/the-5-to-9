@@ -9,6 +9,8 @@ export interface RawArgs {
   concurrency?: number;
   budgetUsd?: number;
   budgetTokens?: number;
+  /** Branch the crew integrates bead branches onto. Empty = resolve the current branch at runtime. */
+  baseBranch?: string;
 }
 
 export interface RunConfig {
@@ -20,6 +22,11 @@ export interface RunConfig {
   concurrency: number;
   budgetUsd: number;
   budgetTokens: number;
+  /**
+   * Branch the crew integrates onto — NEVER main/prod (the irreversible-action rule).
+   * Empty here means "resolve the current checked-out branch at the composition root".
+   */
+  baseBranch: string;
   banner: string;
 }
 
@@ -57,6 +64,7 @@ export function resolveConfig(a: RawArgs): RunConfig {
     concurrency,
     budgetUsd,
     budgetTokens,
+    baseBranch: a.baseBranch ?? '',
     banner,
   };
 }
