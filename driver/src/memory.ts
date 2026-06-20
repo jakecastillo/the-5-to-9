@@ -57,15 +57,24 @@ export class MemoryStore {
   }
 
   private async readType(type: MemoryType): Promise<MemoryEntry[]> {
+    let raw: string;
     try {
-      const raw = await readFile(this.file(type), 'utf8');
-      return raw
-        .split('\n')
-        .filter(Boolean)
-        .map((l) => JSON.parse(l) as MemoryEntry);
+      raw = await readFile(this.file(type), 'utf8');
     } catch {
-      return [];
+      return []; // no file for this type yet
     }
+    // Parse per line and skip a corrupt/torn one rather than discarding the whole file:
+    // a single bad line (e.g. a crash mid-append) must not wipe every memory of this type.
+    const entries: MemoryEntry[] = [];
+    for (const line of raw.split('\n')) {
+      if (!line) continue;
+      try {
+        entries.push(JSON.parse(line) as MemoryEntry);
+      } catch {
+        /* corrupt/torn line — skip it, keep the rest */
+      }
+    }
+    return entries;
   }
 
   /** JIT recall: firewall by reader, score, then take the top entries that fit the char budget. */

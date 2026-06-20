@@ -80,9 +80,19 @@ export class Journal {
     } catch {
       return [];
     }
-    return raw
-      .split('\n')
-      .filter(Boolean)
-      .map((l) => JSON.parse(l) as JournalEvent);
+    // Parse line-by-line and skip any unparseable line. A crash mid-append can leave a
+    // torn final line; the append is fsync'd per whole line, so only the tail can be
+    // partial. Tolerating it keeps resume from crashing on the very journal that exists
+    // to make resume safe — never throw out of replay.
+    const events: JournalEvent[] = [];
+    for (const line of raw.split('\n')) {
+      if (!line) continue;
+      try {
+        events.push(JSON.parse(line) as JournalEvent);
+      } catch {
+        /* torn/partial line — skip it */
+      }
+    }
+    return events;
   }
 }

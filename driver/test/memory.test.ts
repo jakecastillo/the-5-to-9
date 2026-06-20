@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { appendFile, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -35,6 +35,28 @@ test('recall returns the highest-scored entry first', async () => {
     const r = await s.recall({ keywords: ['auth'], reader: 'dealer', budgetChars: 1000, now: NOW });
     assert.equal(r[0].text, 'auth lesson');
   });
+});
+
+// jnx.4: one corrupt/torn line in a memory file must NOT discard the whole file —
+// readType should skip the bad line and keep the rest.
+test('a corrupt line in a memory file does not discard the surviving entries', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'f9mem-'));
+  try {
+    const memDir = join(dir, 'memory');
+    const s = new MemoryStore(memDir);
+    await s.write(entry({ text: 'first', keywords: ['k'] }));
+    // A corrupt MIDDLE line (not just the tail) wedged between two valid entries.
+    await appendFile(join(memDir, 'semantic.jsonl'), '{ this is not valid json\n');
+    await s.write(entry({ text: 'third', keywords: ['k'] }));
+    const r = await s.recall({ keywords: ['k'], reader: 'dealer', budgetChars: 1000, now: NOW });
+    assert.deepEqual(
+      r.map((e) => e.text).sort(),
+      ['first', 'third'],
+      'both valid entries survive the corrupt middle line',
+    );
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
 });
 
 test('the firewall hides auditor-only memory from a Dealer but not an Auditor', async () => {

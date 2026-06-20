@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { appendFile, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -37,5 +37,27 @@ test('hasDone() makes close idempotent across a simulated crash', async () => {
     const j2 = new Journal(path, events);
     assert.equal(j2.hasDone('close', 'b1'), true);
     assert.equal(j2.hasDone('close', 'b2'), false);
+  });
+});
+
+// jnx.4: a crash mid-append leaves a torn (unterminated) final line. replay() must
+// keep every complete event and NOT throw — else resume itself crashes on restart.
+test('replay tolerates a torn final line and keeps the complete events', async () => {
+  await withDir(async (dir) => {
+    const path = join(dir, 'journal.jsonl');
+    const j = new Journal(path);
+    await j.append({ type: 'claim', beadId: 'b1' });
+    await j.append({ type: 'close', beadId: 'b1' });
+    // Crash mid-write: a partial, unterminated JSON line at the tail (no newline).
+    await appendFile(path, '{"type":"merge","beadId":"b2"');
+    const events = await Journal.replay(path);
+    assert.deepEqual(
+      events.map((e) => e.type),
+      ['claim', 'close'],
+      'complete events survive the torn tail',
+    );
+    const j2 = new Journal(path, events);
+    assert.equal(j2.hasDone('close', 'b1'), true);
+    assert.equal(j2.hasDone('merge', 'b2'), false, 'the torn event is not indexed');
   });
 });
