@@ -1,4 +1,3 @@
-import { mkdir } from 'node:fs/promises';
 import type { WorkerAdapter } from './adapters/adapter.ts';
 import type { Beads } from './beads.ts';
 import { type GateConsentDeps, runGate } from './gate-consent.ts';
@@ -50,11 +49,13 @@ export async function runSingleBeadTick(d: TickDeps): Promise<TickResult> {
   await d.beads.claim(bead.id);
   await d.log.write({ kind: 'claim', beadId: bead.id });
 
-  // Use the shared Worktrees.pathFor so K=1 and K>=2 paths are identical:
-  // `.f9-worktrees/` is a dedicated subdir to keep git-managed worktrees out of
-  // the repo root and to match the deterministic pathFor contract used by K>=2.
-  const worktree = d.worktrees.pathFor(bead.id);
-  await mkdir(worktree, { recursive: true });
+  // Create an ISOLATED git worktree on the bead's OWN branch — not a bare dir. The
+  // dealer works on `shift/<bead.id>`, the exact branch the Cage step later merges
+  // onto baseBranch; without this the merge referenced a branch that never existed.
+  // worktrees.add issues `git worktree add -b <branch> <path> HEAD` and returns the
+  // path (deterministic via Worktrees.pathFor, shared with the K>=2 parallel tick).
+  const branch = `shift/${bead.id}`;
+  const worktree = await d.worktrees.add(bead.id, branch);
 
   // Dealer implements.
   const dealerOut = await d.dealer.run(specFor(bead, 'dealer', worktree));
@@ -103,7 +104,6 @@ export async function runSingleBeadTick(d: TickDeps): Promise<TickResult> {
   if (auditOut.status !== 'done') return { claimed: bead.id, closed: null, reason: 'audit-failed' };
 
   // Cage integration: merge the bead's branch onto the base branch (exactly-once via journal).
-  const branch = `shift/${bead.id}`;
   if (!d.journal.hasDone('merge', bead.id)) {
     await d.journal.append({ type: 'merge', beadId: bead.id });
     await d.worktrees.merge(d.baseBranch, branch);

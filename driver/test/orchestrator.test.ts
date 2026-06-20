@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { access, mkdtemp, rm } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -24,6 +24,10 @@ function fakeBdExec(): { fn: ExecFn; calls: string[] } {
         stderr: '',
         code: 0,
       };
+    }
+    // Faithful to real git: `git worktree add -b <branch> <path> HEAD` creates <path>.
+    if (cmd === 'git' && args[0] === 'worktree' && args[1] === 'add') {
+      await mkdir(args[args.length - 2], { recursive: true });
     }
     return { stdout: '{}', stderr: '', code: 0 };
   };
@@ -887,6 +891,76 @@ test('K=1 tick: worktree directory exists before dealer runs', async () => {
     });
     assert.ok(worktreePathSeen !== null, 'dealer.run must have been called');
     assert.equal(r.closed, 'b1');
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+// ── Bug fix (jnx.3): the K=1 tick must CREATE the branch it later merges ──────
+//
+// orchestrator.ts created a bare `mkdir` worktree, never a git worktree on the
+// bead's branch. The Cage step then merged `shift/<bead.id>` — a branch that was
+// never created, so isolation was broken and the merge had nothing real to take.
+// The fix issues `git worktree add -b shift/<bead.id> <path> HEAD` (via
+// Worktrees.add) BEFORE the dealer runs, on the SAME branch the merge references.
+
+test('K=1 tick: creates the worktree branch (worktrees.add -b) before the dealer, merges that branch', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'f9orch-add-'));
+  try {
+    const order: string[] = [];
+    let addArgs: string[] | null = null;
+    const fn: ExecFn = async (cmd, args) => {
+      const key = [cmd, ...args].join(' ');
+      if (key.startsWith('bd ready'))
+        return {
+          stdout: JSON.stringify([{ id: 'b1', status: 'open', inScopeDirs: ['src'] }]),
+          stderr: '',
+          code: 0,
+        };
+      if (cmd === 'git' && args[0] === 'worktree' && args[1] === 'add') {
+        order.push('worktree-add');
+        addArgs = args;
+        // Faithful to real git: `git worktree add ... <path> HEAD` creates <path>.
+        await mkdir(args[args.length - 2], { recursive: true });
+      }
+      if (key.startsWith('git merge ')) order.push(`merge ${args[args.length - 1]}`);
+      return { stdout: '{}', stderr: '', code: 0 };
+    };
+    const capturingDealer = {
+      async run() {
+        order.push('dealer');
+        return dealerScript.b1;
+      },
+    };
+    const beads = new Beads(fn, new WriteQueue());
+    const r = await runSingleBeadTick({
+      beads,
+      journal: new Journal(join(dir, 'journal.jsonl')),
+      log: new RunLog(join(dir, 'events.jsonl')),
+      ledger: new BudgetLedger(1, 0),
+      dealer: capturingDealer as unknown as import('../src/adapters/mock.ts').MockAdapter,
+      auditor: new MockAdapter(auditorScript),
+      mechanicalGate: async () => ({ green: true }),
+      worktreeRoot: dir,
+      worktrees: new Worktrees(fn, dir),
+      baseBranch: 'main',
+    });
+    assert.equal(r.closed, 'b1');
+    const addIdx = order.indexOf('worktree-add');
+    const dealerIdx = order.indexOf('dealer');
+    assert.ok(addIdx !== -1, `a git worktree add must be issued; order=${JSON.stringify(order)}`);
+    assert.ok(addIdx < dealerIdx, 'the worktree branch must be created before the dealer runs');
+    // the add creates the bead's branch via -b shift/b1
+    assert.deepEqual(
+      [addArgs?.[2], addArgs?.[3]],
+      ['-b', 'shift/b1'],
+      `worktree add must create -b shift/b1; got ${JSON.stringify(addArgs)}`,
+    );
+    // the merge references that SAME created branch
+    assert.ok(
+      order.includes('merge shift/b1'),
+      `the merge must reference shift/b1; order=${JSON.stringify(order)}`,
+    );
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
