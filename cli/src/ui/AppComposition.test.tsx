@@ -4,6 +4,15 @@ import { App } from './App.tsx';
 import { ACTIVE_MODEL, IDLE_MODEL } from './fixtures.ts';
 import { footerFor } from './keymap.ts';
 
+// useApp().exit() isn't injectable via deps and ink-testing-library can't observe it,
+// so spy on it through the ink module — everything else (Box/Text/useInput/useStdout)
+// stays real. Only the jnx.5 report-exit test consults exitSpy.
+const { exitSpy } = vi.hoisted(() => ({ exitSpy: vi.fn() }));
+vi.mock('ink', async (importOriginal) => {
+  const actual = (await importOriginal()) as typeof import('ink');
+  return { ...actual, useApp: () => ({ exit: exitSpy }) };
+});
+
 const delay = (ms = 40) => new Promise((r) => setTimeout(r, ms));
 
 /** A common deps bundle: injected read + no real run + spies for teardown. */
@@ -133,5 +142,38 @@ test('two rapid `r` presses start the run only once (no double-start)', async ()
   stdin.write('r'); // a rapid second press must be ignored while running
   await delay();
   expect(d.startRun).toHaveBeenCalledTimes(1);
+  unmount();
+});
+
+// jnx.5: the shift report (`o`) was an inescapable dead-end — `q`/`Esc` were
+// swallowed by the `ui.modal != null` bail, so the footer's "q to exit" promise
+// was a lie. These pin the exit/return affordances.
+
+test('jnx.5: the shift report opens on `o` and `q` exits the viewer (footer promise honored)', async () => {
+  exitSpy.mockClear();
+  const d = testDeps();
+  const { lastFrame, stdin, unmount } = render(<App deps={d} />);
+  await vi.waitFor(() => expect(lastFrame()).toContain('Ship auth refactor'));
+  stdin.write('o'); // clock-out → the shift report view
+  await delay();
+  expect(lastFrame()).toContain('Shift report');
+  expect(exitSpy).not.toHaveBeenCalled(); // still in the report, nothing exited yet
+  stdin.write('q'); // the report footer promises this exits
+  await delay();
+  expect(exitSpy).toHaveBeenCalled(); // the dead-end is gone — `q` exits the viewer
+  unmount();
+});
+
+test('jnx.5: `Esc` returns from the shift report to the live dashboard', async () => {
+  const d = testDeps();
+  const { lastFrame, stdin, unmount } = render(<App deps={d} />);
+  await vi.waitFor(() => expect(lastFrame()).toContain('Ship auth refactor'));
+  stdin.write('o');
+  await delay();
+  expect(lastFrame()).toContain('Shift report');
+  stdin.write('\x1B'); // Esc
+  await delay();
+  expect(lastFrame()).not.toContain('Shift report'); // back on the dashboard
+  expect(lastFrame()).toContain('Ship auth refactor');
   unmount();
 });

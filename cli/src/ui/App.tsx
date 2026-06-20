@@ -187,6 +187,18 @@ export function App({ initial, rawModeSupported = true, deps = {} }: AppProps): 
       }
       return;
     }
+    if (ui.modal === 'report') {
+      // The report footer promises "q to exit" — honor it (the detached run keeps
+      // going; this viewer is read-only). Esc returns to the live dashboard. Without
+      // this branch the bail below swallowed every key and froze the screen.
+      if (input === 'q') {
+        teardownViewer();
+        exit();
+      } else if (key.escape) {
+        setUi((s) => ({ ...s, modal: null }));
+      }
+      return;
+    }
     if (ui.modal != null) return; // other modals own input
 
     if (input === '1') return focus('status');
