@@ -266,6 +266,33 @@ else
   bad "night-shift loop regressed:"; printf '%s\n' "$ns_out" | sed 's/^/   /'
 fi
 
+# ── 5e.2 pnpm workspace manifest resolved (toolchain-free; catches the allowBuilds trap) ─
+# pnpm 10+ makes dependency build scripts opt-in; pnpm 11 makes strictDepBuilds the default,
+# so an unresolved build approval HARD-FAILS the deps-status check before every `pnpm run`,
+# turning the driver/ and cli/ groups RED on a fresh checkout. pnpm writes a literal
+# "set this to true or false" placeholder until each entry is resolved. CI runs pnpm 10
+# (warn-only) and can't see the trap — this grep/awk guard needs no toolchain, so it catches
+# a re-introduced placeholder everywhere.
+head_ "pnpm workspace manifest"
+ws="$ROOT/pnpm-workspace.yaml"
+if [[ -f "$ws" ]]; then
+  ws_bad=0
+  # Strip full-line comments before scanning so a comment that mentions the placeholder phrase
+  # (like the one above this very block) doesn't trip the guard.
+  if grep -vE '^[[:space:]]*#' "$ws" | grep -qi 'set this to true or false'; then
+    bad "pnpm-workspace.yaml has an unresolved allowBuilds placeholder — set each entry to true or false"
+    ws_bad=1
+  fi
+  # Every allowBuilds map entry must resolve to a boolean (or 'warn'); anything else is unresolved.
+  while IFS= read -r entry; do
+    val="$(printf '%s' "${entry#*:}" | tr -d "[:space:]'\"")"
+    case "$val" in true | false | warn) : ;; *) bad "pnpm-workspace.yaml allowBuilds value unresolved: $(printf '%s' "$entry" | sed 's/^[[:space:]]*//')"; ws_bad=1 ;; esac
+  done < <(awk '/^allowBuilds:[[:space:]]*$/{f=1;next} f&&/^[^[:space:]]/{f=0} f&&/^[[:space:]]+[^#[:space:]].*:/{print}' "$ws")
+  [[ "$ws_bad" -eq 0 ]] && ok "pnpm-workspace.yaml build approvals resolved (no placeholders)"
+else
+  note "no pnpm-workspace.yaml — skipped"
+fi
+
 # ── 5f. driver/ TypeScript checks (typecheck + lint + tests; skipped if toolchain absent) ─
 head_ "driver (TypeScript)"
 if [[ -d "$ROOT/driver" ]] && have node && have pnpm; then

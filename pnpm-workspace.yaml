@@ -1,3 +1,13 @@
 packages:
   - driver
   - cli
+
+# Dependency build scripts are opt-in since pnpm 10, and pnpm 11 makes strictDepBuilds the
+# default: any ignored build hard-fails the deps-status check that runs before every
+# `pnpm run`, turning the test gate RED on a fresh checkout. pnpm rewrites this block with a
+# `set this to true or false` placeholder until each entry is resolved. Approve exactly the
+# deps whose postinstall builds we trust: biome ships a prebuilt native binary; esbuild
+# fetches/compiles its Go binary. Keep values explicit so `pnpm install` stays deterministic.
+allowBuilds:
+  '@biomejs/biome': true
+  esbuild: true
