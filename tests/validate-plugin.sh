@@ -32,6 +32,7 @@ required=(
   "hooks/hooks.json" "hooks/session-start.sh" "hooks/user-prompt-submit.sh"
   "hooks/shift-loop.sh" "hooks/irreversible-gate.sh" "hooks/pre-compact.sh"
   "hooks/irreversible-gate.mjs" "hooks/gate.test.mjs"
+  "hooks/shift-loop.mjs" "hooks/shift-loop.test.mjs"
   "scripts/lib/common.sh" "scripts/beads-helpers.sh" "scripts/setup-shift.sh"
   "scripts/clock-out.sh" "scripts/guardrail-scan.sh" "scripts/night-shift.sh"
   "scripts/launch-driver.sh" "scripts/clock-in-dispatch.sh" "scripts/demo-shift.sh"
