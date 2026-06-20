@@ -342,6 +342,18 @@ else
   bad "shift-dashboard bead lists regressed:"; printf '%s\n' "$sd_out" | sed 's/^/   /'
 fi
 
+# ── 5i. shift lifecycle smoke (setup-shift → Stop-loop → night-shift drain → clock-out) ─
+# Runs end-to-end mechanics in a throwaway repo. CI ran this as a separate step; running it
+# here means a plain `bash tests/validate-plugin.sh` also catches a lifecycle regression.
+# F9_SKIP_VALIDATE_CALL guards against any nested validate call (same as the dashboard test).
+head_ "shift lifecycle smoke (smoke-shift.sh)"
+ss_out="$(F9_SKIP_VALIDATE_CALL=1 bash "$ROOT/tests/smoke-shift.sh" 2>&1)"; ss_rc=$?
+if [[ "$ss_rc" -eq 0 ]]; then
+  ok "$(printf '%s' "$ss_out" | tail -n1)"
+else
+  bad "shift lifecycle smoke regressed:"; printf '%s\n' "$ss_out" | tail -n 20 | sed 's/^/   /'
+fi
+
 # ── 6. Optional: shellcheck (never blocks) ───────────────────────────────────
 head_ "shellcheck (optional)"
 if have shellcheck; then
