@@ -70,6 +70,51 @@ test('getDashboardModel() surfaces a pending consent as pendingGate', async () =
   expect(model.pendingGate?.role).toBe('Cage');
 });
 
+test('jnx.7: counts derive from the fetched lists (never diverge) and bd is not double-spawned', async () => {
+  const calls: string[] = [];
+  const ready: BeadLite[] = [
+    { id: 'r1', title: 'a' },
+    { id: 'r2', title: 'b' },
+  ];
+  const inProgress: BeadLite[] = [{ id: 'ip1', title: 'c' }];
+  const blocked: BeadLite[] = [
+    { id: 'bk1', title: 'd' },
+    { id: 'bk2', title: 'e' },
+    { id: 'bk3', title: 'f' },
+  ];
+  const beads: BeadsRead = {
+    available: () => true,
+    ready: () => {
+      calls.push('ready');
+      return Promise.resolve(ready);
+    },
+    list: (s) => {
+      calls.push(`list:${s}`);
+      return Promise.resolve(s === 'in_progress' ? inProgress : blocked);
+    },
+    // counts DELIBERATELY diverge from the list lengths (stale/racy bd) — must be ignored.
+    count: (s) => {
+      calls.push(`count:${s}`);
+      return Promise.resolve(s === 'closed' ? 5 : 999);
+    },
+    readyCount: () => {
+      calls.push('readyCount');
+      return Promise.resolve(999);
+    },
+  };
+  const model = await getDashboardModel({ beads, stateDir: emptyStateDir() });
+  // Counts come from the lists, not the divergent count()/readyCount().
+  expect(model.counts.inProgress).toBe(inProgress.length); // 1, not 999
+  expect(model.counts.blocked).toBe(blocked.length); // 3, not 999
+  expect(model.readyCount).toBe(ready.length); // 2, not 999
+  // No double-spawn: in_progress/blocked are fetched as a list ONLY (not also counted),
+  // and readyCount() is never called (ready() supersedes it). closed is counted once.
+  expect(calls).not.toContain('count:in_progress');
+  expect(calls).not.toContain('count:blocked');
+  expect(calls).not.toContain('readyCount');
+  expect(calls.filter((c) => c === 'count:closed')).toHaveLength(1);
+});
+
 test('getDashboardModel() with zero work → pct 0, no divide-by-zero', async () => {
   const empty: BeadsRead = {
     available: () => true,

@@ -1,7 +1,8 @@
 import { type BeadLite, makeBeadsRead } from '../beads-read.ts';
 import { listPending } from '../consent.ts';
 import { stateDir as defaultStateDir } from '../paths.ts';
-import { type OpDeps, type StatusView, status } from './status.ts';
+import { readGateMarker, readShiftState } from '../state.ts';
+import type { OpDeps, StatusView } from './status.ts';
 
 /**
  * A surfaced irreversible-gate stop. Phase 1b carries the consent-contract
@@ -49,14 +50,24 @@ export interface DashboardModel extends StatusView {
 export async function getDashboardModel(deps: OpDeps = {}): Promise<DashboardModel> {
   const beads = deps.beads ?? makeBeadsRead();
   const dir = deps.stateDir ?? defaultStateDir();
-  const [view, ready, inProgress, blocked] = await Promise.all([
-    status({ beads, stateDir: dir }),
+  // One bd spawn per status: the lists we render ALSO supply the counts (length), so
+  // we never re-count in_progress/blocked or re-run `bd ready` via readyCount(). Only
+  // `closed` (which we don't list) needs a count. This both halves the per-tick bd
+  // spawns and removes the count/list divergence the old status() path could show.
+  const [closedCount, ready, inProgress, blocked] = await Promise.all([
+    beads.count('closed'),
     beads.ready(),
     beads.list('in_progress'),
     beads.list('blocked'),
   ]);
+  const view: StatusView = {
+    state: readShiftState(dir),
+    readyCount: ready.length,
+    counts: { closed: closedCount, inProgress: inProgress.length, blocked: blocked.length },
+    gate: readGateMarker(dir),
+  };
   // null means bd failed — treat as 0 for progress math (can't know the true count).
-  const closed = view.counts.closed ?? 0;
+  const closed = closedCount ?? 0;
   const total = closed + ready.length + inProgress.length + blocked.length;
   const pct = total > 0 ? Math.floor((closed * 100) / total) : 0;
 
