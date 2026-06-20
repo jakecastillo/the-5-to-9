@@ -119,3 +119,17 @@ allow echo $(date)
 allow ls $(pwd)
 allow grep foo $(find . -name x)
 allow VERSION=$(cat VERSION) && echo hi
+
+# ── must DENY: outward action on a LATER LINE (multiline / escaped \n, \t) ─────
+# <NL>/<TAB> expand to a real newline/tab in gate-test.sh. These exercise the
+# bash+no-jq fallback, where the sed extractor left JSON \n/\t literal and the
+# outward verb slipped past segmentation until the gate decoded the escapes.
+deny git push origin feature<NL>npm publish dist
+deny echo prep the release<NL>git push --force origin main
+deny echo build step<TAB>terraform apply
+deny git status<NL>gh release create v1.0.0
+
+# ── must ALLOW: benign multiline work (no outward verb on any line) ───────────
+allow echo line one<NL>ls -la
+allow npm test<NL>npm run build
+allow git add -A<NL>git commit -m wip

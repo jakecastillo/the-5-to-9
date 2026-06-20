@@ -30,12 +30,17 @@ fi
 # is found — so a missing runtime never silently disables the gate. hooks.json is
 # unchanged (it still invokes this launcher).
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-f9_node="$(command -v node 2>/dev/null || true)"
-if [[ -z "$f9_node" ]] && command -v claude >/dev/null 2>&1; then
-  f9_cdir="$(dirname "$(command -v claude 2>/dev/null)")"
-  for f9_c in "$f9_cdir/node" "$f9_cdir/node.exe"; do
-    [[ -x "$f9_c" ]] && { f9_node="$f9_c"; break; }
-  done
+# F9_GATE_SKIP_NODE forces the bash fallback below — the gate corpus sets it (with
+# F9_NO_JQ) to pin the no-node/no-jq path that CI's node runtime would otherwise hide.
+f9_node=""
+if [[ -z "${F9_GATE_SKIP_NODE:-}" ]]; then
+  f9_node="$(command -v node 2>/dev/null || true)"
+  if [[ -z "$f9_node" ]] && command -v claude >/dev/null 2>&1; then
+    f9_cdir="$(dirname "$(command -v claude 2>/dev/null)")"
+    for f9_c in "$f9_cdir/node" "$f9_cdir/node.exe"; do
+      [[ -x "$f9_c" ]] && { f9_node="$f9_c"; break; }
+    done
+  fi
 fi
 if [[ -n "$f9_node" && -f "$HERE/irreversible-gate.mjs" ]]; then
   exec "$f9_node" "$HERE/irreversible-gate.mjs"
@@ -47,7 +52,7 @@ payload="$(cat 2>/dev/null || true)"
 # Pull the shell command out of the tool input (jq preferred; sed fallback that
 # stops at the closing quote so it doesn't over-capture trailing JSON).
 cmd=""
-if command -v jq >/dev/null 2>&1; then
+if [[ -z "${F9_NO_JQ:-}" ]] && command -v jq >/dev/null 2>&1; then
   cmd="$(printf '%s' "$payload" | jq -r '.tool_input.command // .tool_input.cmd // empty' 2>/dev/null)"
 fi
 if [[ -z "$cmd" ]]; then
@@ -56,6 +61,13 @@ fi
 
 # Nothing to classify → allow.
 [[ -z "$cmd" ]] && exit 0
+
+# The jq/node paths receive real characters; the no-jq sed extractor leaves JSON
+# escapes literal. Decode \n \t \r -> space so an outward action on a LATER LINE
+# keeps its leading word boundary and can't slip past segmentation (see gate-cases.txt
+# multiline rows). Mapping to whitespace only ever widens a match — the safe direction
+# for a deny-list. The node/jq paths see no literal \n here, so this is a no-op there.
+cmd="$(printf '%s' "$cmd" | sed -e 's/\\n/ /g' -e 's/\\t/ /g' -e 's/\\r/ /g')"
 
 # Deny-list of irreversible OUTWARD tool actions (case-insensitive ERE; each rule
 # is anchored at a word boundary so it matches the tool, not a substring). Built
