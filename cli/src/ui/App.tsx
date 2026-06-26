@@ -1,6 +1,7 @@
 import { Box, Text, useApp, useInput, useStdout } from 'ink';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { resolve as defaultResolve } from '../consent.ts';
+import { type ClockInResult, clockIn as defaultClockIn } from '../operations/clock-in.ts';
 import type { DashboardModel } from '../operations/dashboard-model.ts';
 import type { RunHandle, RunOpts } from '../operations/run.ts';
 import { BacklogPane } from './BacklogPane.tsx';
@@ -53,6 +54,11 @@ export interface AppDeps {
     approved: boolean,
     token?: string,
   ) => { ok: boolean; error?: string };
+  /**
+   * Open a shift with a goal (defaults to operations/clock-in.ts clockIn).
+   * Injected so tests pass a mock and never write real state or switch branches.
+   */
+  clockIn?: (goal: string) => Promise<ClockInResult>;
 }
 
 export interface AppProps {
@@ -73,6 +79,7 @@ export function App({ initial, rawModeSupported = true, deps = {} }: AppProps): 
   const pollIntervalMs = deps.pollIntervalMs ?? 1500;
   const resolveConsent =
     deps.resolveConsent ?? ((id, approved, token) => defaultResolve(id, approved, token));
+  const clockInFn = deps.clockIn ?? defaultClockIn;
 
   const [ui, setUi] = useState<AppState>(() => ({
     ...initialState(),
@@ -145,10 +152,22 @@ export function App({ initial, rawModeSupported = true, deps = {} }: AppProps): 
     });
   }, []);
 
-  const onClockInSubmit = useCallback((_goal: string) => {
-    // Paint immediately by closing the modal; the poller picks up new state.
-    setUi((s) => ({ ...s, modal: null }));
-  }, []);
+  const onClockInSubmit = useCallback(
+    (goal: string) => {
+      // Close the modal immediately; then fire the facade to write state.
+      setUi((s) => ({ ...s, modal: null }));
+      void clockInFn(goal).then((result) => {
+        if (result.warnings.length > 0) {
+          setStreamLines((lines) => [
+            ...lines.slice(-999),
+            ...result.warnings.map((w) => `[notice] ${w}`),
+          ]);
+          setUi((s) => ({ ...s, focusedPane: 'stream' }));
+        }
+      });
+    },
+    [clockInFn],
+  );
 
   // A synchronous start guard: `ui.running` can be stale within two rapid key
   // events in the same tick (setUi is async), so the ref is the source of truth
@@ -185,12 +204,20 @@ export function App({ initial, rawModeSupported = true, deps = {} }: AppProps): 
   // ---------------------------------------------------------------------------
   const ctx: CommandContext = {
     clockIn: (goal) => {
-      // If no goal was supplied, open the interactive modal; otherwise the
-      // operations facade would handle it (real integration is a follow-up).
-      if (!goal) {
-        setUi((s) => ({ ...s, modal: 'clock-in' }));
+      const trimmed = goal.trim();
+      if (trimmed) {
+        // Inline goal supplied — call the facade; fire-and-forget, repaint on warnings.
+        void clockInFn(trimmed).then((result) => {
+          if (result.warnings.length > 0) {
+            setStreamLines((lines) => [
+              ...lines.slice(-999),
+              ...result.warnings.map((w) => `[notice] ${w}`),
+            ]);
+            setUi((s) => ({ ...s, focusedPane: 'stream' }));
+          }
+        });
       } else {
-        // For now, open the modal; the user can adjust the goal there.
+        // No goal — open the interactive modal so the user can type one.
         setUi((s) => ({ ...s, modal: 'clock-in' }));
       }
     },

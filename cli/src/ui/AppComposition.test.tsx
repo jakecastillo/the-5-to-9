@@ -519,3 +519,76 @@ test('palette open: Down advances palette selection but leaves backlog cursor un
   expect(bead2After).not.toMatch(/▸/); // second bead still NOT selected
   unmount();
 });
+
+// ---------------------------------------------------------------------------
+// Bead 200.8: /clock-in <goal> wires the injected operations.clockIn facade
+// ---------------------------------------------------------------------------
+
+test('/clock-in <goal>+Enter calls the injected clockIn mock with the goal and does NOT open the modal', async () => {
+  const clockIn = vi.fn(async () => ({
+    branch: 'the-5-to-9/shift-20260625',
+    stateFile: '/tmp/state',
+    warnings: [] as string[],
+  }));
+  const d = testDeps({ clockIn });
+  const { lastFrame, stdin, unmount } = render(<App deps={d} />);
+  await vi.waitFor(() => expect(lastFrame()).toContain('Ship auth refactor'));
+  stdin.write('/clock-in ship the auth refactor');
+  await delay();
+  stdin.write('\r'); // Enter
+  await delay();
+  // The injected facade must have been called with the inline goal.
+  expect(clockIn).toHaveBeenCalledTimes(1);
+  expect(clockIn).toHaveBeenCalledWith('ship the auth refactor');
+  // The modal must NOT open.
+  expect(lastFrame()).not.toMatch(/shift goal/i);
+  unmount();
+});
+
+test('/clock-in+Enter (no goal) opens the ClockInModal and does NOT call the injected clockIn', async () => {
+  const clockIn = vi.fn(async () => ({
+    branch: 'the-5-to-9/shift-20260625',
+    stateFile: '/tmp/state',
+    warnings: [] as string[],
+  }));
+  const d = testDeps({ clockIn });
+  const { lastFrame, stdin, unmount } = render(<App deps={d} />);
+  await vi.waitFor(() => expect(lastFrame()).toContain('Ship auth refactor'));
+  stdin.write('/clock-in');
+  await delay();
+  stdin.write('\r'); // Enter
+  await delay();
+  // Modal must open.
+  expect(lastFrame()).toMatch(/shift goal/i);
+  // The facade must NOT be called when no goal is supplied.
+  expect(clockIn).not.toHaveBeenCalled();
+  unmount();
+});
+
+test('submitting the ClockInModal calls the injected clockIn with the typed goal and closes the modal', async () => {
+  const clockIn = vi.fn(async () => ({
+    branch: 'the-5-to-9/shift-20260625',
+    stateFile: '/tmp/state',
+    warnings: [] as string[],
+  }));
+  const d = testDeps({ clockIn });
+  const { lastFrame, stdin, unmount } = render(<App deps={d} />);
+  await vi.waitFor(() => expect(lastFrame()).toContain('Ship auth refactor'));
+  // Open the modal via /clock-in (no goal).
+  stdin.write('/clock-in');
+  await delay();
+  stdin.write('\r');
+  await delay();
+  expect(lastFrame()).toMatch(/shift goal/i);
+  // Type a goal in the modal and submit.
+  stdin.write('ship the consent loop');
+  await delay();
+  stdin.write('\r'); // Enter → submit modal
+  await delay();
+  // The facade must be called with the typed goal.
+  expect(clockIn).toHaveBeenCalledTimes(1);
+  expect(clockIn).toHaveBeenCalledWith('ship the consent loop');
+  // The modal must close.
+  expect(lastFrame()).not.toMatch(/shift goal/i);
+  unmount();
+});
