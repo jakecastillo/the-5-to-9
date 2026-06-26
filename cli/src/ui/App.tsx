@@ -97,6 +97,11 @@ export function App({ initial, rawModeSupported = true, deps = {} }: AppProps): 
   // The last gate id we surfaced+closed. A just-resolved/dismissed consent must
   // not immediately re-surface from a stale poll before the next tick drops it.
   const closedGateRef = useRef<string | null>(null);
+  // Stable ref for the stream viewport height, kept in sync every render.
+  // Used in the tail callback to cap the scroll offset without including the
+  // derived height value in the useEffect deps array (which would cause a TDZ
+  // error since the value is computed after the useEffect call in the source).
+  const streamViewportHeightRef = useRef(18);
 
   // Pause polling while any blocking modal is open (background freeze).
   const pollEnabled = ui.modal == null || ui.modal === 'quit-confirm';
@@ -129,7 +134,28 @@ export function App({ initial, rawModeSupported = true, deps = {} }: AppProps): 
     if (!ui.running) return;
     const path = runHandle?.journalPath ?? process.env.FIVE_TO_NINE_JOURNAL ?? '';
     if (path === '') return;
-    const tail = makeTail(path, () => setStreamLines(tail.lines()));
+    const tail = makeTail(path, () => {
+      // Use the functional form of setStreamLines so we can compare old vs new
+      // length and, when follow is off, compensate the scroll offset so the
+      // visible window stays anchored to the same lines rather than drifting
+      // toward the growing tail.
+      setStreamLines((prev) => {
+        const newLines = tail.lines();
+        if (!followRef.current) {
+          const added = Math.max(0, newLines.length - prev.length);
+          if (added > 0) {
+            setUi((s) => ({
+              ...s,
+              streamScroll: Math.min(
+                s.streamScroll + added,
+                Math.max(0, newLines.length - streamViewportHeightRef.current),
+              ),
+            }));
+          }
+        }
+        return newLines;
+      });
+    });
     tailRef.current = tail;
     setStreamLines(tail.lines());
     return () => {
@@ -141,6 +167,12 @@ export function App({ initial, rawModeSupported = true, deps = {} }: AppProps): 
   const { exit } = useApp();
   const { stdout } = useStdout();
   const rows = stdout?.rows ?? 24;
+  // Rows available for the scrollable completed-lines window in RunStreamPane.
+  // Total budget: rows-1 (outer Box) minus status bar (1), stream header (1),
+  // live tail line (1), command bar (1), footer (1) = rows - 6.
+  const streamViewportHeight = Math.max(4, rows - 6);
+  // Keep the ref in sync so the tail callback always sees the latest value.
+  streamViewportHeightRef.current = streamViewportHeight;
 
   const focus = useCallback((pane: Pane) => setUi((s) => ({ ...s, focusedPane: pane })), []);
   const cyclePane = useCallback((dir: 1 | -1) => {
@@ -176,6 +208,13 @@ export function App({ initial, rawModeSupported = true, deps = {} }: AppProps): 
   useEffect(() => {
     runningRef.current = ui.running;
   }, [ui.running]);
+
+  // Ref for the current follow state, read in the tail callback to decide
+  // whether to compensate the scroll offset when new lines arrive.
+  const followRef = useRef(ui.follow);
+  useEffect(() => {
+    followRef.current = ui.follow;
+  }, [ui.follow]);
 
   const onRun = useCallback(async () => {
     if (runningRef.current) return; // already running — ignore the duplicate
@@ -257,7 +296,8 @@ export function App({ initial, rawModeSupported = true, deps = {} }: AppProps): 
       setUi((s) => ({ ...s, filter: query }));
     },
     follow: () => {
-      setUi((s) => ({ ...s, follow: !s.follow }));
+      // Re-enabling follow always re-pins to the tail (streamScroll → 0).
+      setUi((s) => ({ ...s, follow: !s.follow, streamScroll: !s.follow ? 0 : s.streamScroll }));
     },
     clear: () => {
       setStreamLines([]);
@@ -333,7 +373,8 @@ export function App({ initial, rawModeSupported = true, deps = {} }: AppProps): 
       return;
     }
 
-    // Arrow keys: palette row navigation (buffer starts with '/') or backlog nav.
+    // Arrow keys: palette row navigation (buffer starts with '/'), backlog nav,
+    // or Run Stream scroll (bead 200.9).
     if (key.upArrow || key.downArrow) {
       if (ui.input.startsWith('/')) {
         // Move palette selection up/down.
@@ -355,6 +396,41 @@ export function App({ initial, rawModeSupported = true, deps = {} }: AppProps): 
             ? 0
             : Math.max(cur - 1, 0);
         setUi((s) => ({ ...s, selectedBeadId: flatBeadIds[next] }));
+      } else if (ui.focusedPane === 'stream') {
+        // Scroll the Run Stream viewport. Up scrolls toward older lines (detaches
+        // follow); Down scrolls toward newer lines (re-pins follow at the tail).
+        const maxScroll = Math.max(0, streamLines.length - streamViewportHeight);
+        if (key.upArrow) {
+          setUi((s) => {
+            const next = Math.min(s.streamScroll + 1, maxScroll);
+            return { ...s, streamScroll: next, follow: false };
+          });
+        } else {
+          setUi((s) => {
+            const next = Math.max(s.streamScroll - 1, 0);
+            // Re-enable follow when we scroll back to the tail.
+            return { ...s, streamScroll: next, follow: next === 0 ? true : s.follow };
+          });
+        }
+      }
+      return;
+    }
+
+    // Ctrl+u / Ctrl+d: half-page scroll in the Run Stream pane (bead 200.9).
+    // Only fires when the stream is focused and the command buffer is empty.
+    if (key.ctrl && (input === 'u' || input === 'd') && ui.focusedPane === 'stream') {
+      const halfPage = Math.max(1, Math.floor(streamViewportHeight / 2));
+      const maxScroll = Math.max(0, streamLines.length - streamViewportHeight);
+      if (input === 'u') {
+        setUi((s) => {
+          const next = Math.min(s.streamScroll + halfPage, maxScroll);
+          return { ...s, streamScroll: next, follow: false };
+        });
+      } else {
+        setUi((s) => {
+          const next = Math.max(s.streamScroll - halfPage, 0);
+          return { ...s, streamScroll: next, follow: next === 0 ? true : s.follow };
+        });
       }
       return;
     }
@@ -513,6 +589,8 @@ export function App({ initial, rawModeSupported = true, deps = {} }: AppProps): 
           follow={ui.follow}
           isActive={ui.focusedPane === 'stream'}
           running={ui.running}
+          viewportHeight={streamViewportHeight}
+          scroll={ui.streamScroll}
         />
       </Box>
       {ui.modal === 'quit-confirm' && (

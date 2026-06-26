@@ -54,6 +54,11 @@ export interface AppState {
   running: boolean;
   /** Whether the Run Stream auto-scrolls to the tail (follow mode). */
   follow: boolean;
+  /**
+   * How many lines the Run Stream viewport is scrolled up from the tail.
+   * 0 = pinned to the tail; N = N lines above the tail.
+   */
+  streamScroll: number;
 }
 
 /** The default initial UI state (no data yet, Status focused). */
@@ -70,5 +75,6 @@ export function initialState(): AppState {
     gate: null,
     running: false,
     follow: true,
+    streamScroll: 0,
   };
 }

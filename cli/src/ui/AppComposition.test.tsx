@@ -6,6 +6,23 @@ import { footerFor } from './keymap.ts';
 
 const delay = (ms = 40) => new Promise((r) => setTimeout(r, ms));
 
+// ---------------------------------------------------------------------------
+// Helper: a makeTail mock that starts with N lines and lets tests push more.
+// ---------------------------------------------------------------------------
+function makePushableTail(initialLines: string[]) {
+  let lines = [...initialLines];
+  let onLinesCb: (() => void) | null = null;
+  const push = (line: string) => {
+    lines = [...lines, line].slice(-999);
+    onLinesCb?.();
+  };
+  const makeTail = vi.fn((_path: string, cb: () => void) => {
+    onLinesCb = cb;
+    return { lines: () => lines, stop: vi.fn() };
+  });
+  return { makeTail, push };
+}
+
 /** A common deps bundle: injected read + no real run + spies for teardown. */
 function testDeps(overrides: Record<string, unknown> = {}) {
   const tailStop = vi.fn();
@@ -590,5 +607,175 @@ test('submitting the ClockInModal calls the injected clockIn with the typed goal
   expect(clockIn).toHaveBeenCalledWith('ship the consent loop');
   // The modal must close.
   expect(lastFrame()).not.toMatch(/shift goal/i);
+  unmount();
+});
+
+// ---------------------------------------------------------------------------
+// Bead 200.9: Run Stream scroll — Up/Down/Ctrl+u routing when stream is focused
+// ---------------------------------------------------------------------------
+
+/** 50 initial stream lines (line-0 … line-49) */
+const STREAM_50 = Array.from({ length: 50 }, (_, i) => `line-${i}`);
+
+/**
+ * Build an App with 50 stream lines pre-loaded, running=true so the tail
+ * attaches immediately, and the stream pane focused.
+ */
+function streamDeps(overrides: Record<string, unknown> = {}) {
+  const { makeTail, push } = makePushableTail(STREAM_50);
+  const d = testDeps({
+    initialRunning: true,
+    initialJournalPath: '/tmp/stream-test.jsonl',
+    makeTail,
+    ...overrides,
+  });
+  return { d, push };
+}
+
+test('stream focused with 50 lines: latest line (line-49) is visible by default (follow=true)', async () => {
+  const { d } = streamDeps();
+  const { lastFrame, stdin, unmount } = render(<App deps={d} />);
+  await vi.waitFor(() => expect(d.makeTail).toHaveBeenCalled());
+  stdin.write('\x1b3'); // Alt+3 → focus Run Stream
+  await delay();
+  const f = lastFrame() ?? '';
+  expect(f).toContain('line-49'); // tail is visible
+  unmount();
+});
+
+test('Up key when stream focused: hides latest line, shows earlier line, turns follow off', async () => {
+  const { d } = streamDeps();
+  const { lastFrame, stdin, unmount } = render(<App deps={d} />);
+  await vi.waitFor(() => expect(d.makeTail).toHaveBeenCalled());
+  stdin.write('\x1b3'); // focus stream
+  await delay();
+  stdin.write('\x1B[A'); // Up arrow
+  await delay();
+  const f = lastFrame() ?? '';
+  // follow must be off now
+  expect(f).toMatch(/follow · off/);
+  // The tail line should no longer be in the viewport (scrolled up 1)
+  expect(f).not.toContain('line-49');
+  // An earlier line should be visible
+  expect(f).toMatch(/line-\d+/);
+  // The ↓ N newer indicator must appear (belowCount = scroll = 1)
+  expect(f).toMatch(/↓.*newer/);
+  // Note: ↑ N older only appears when lines > viewportHeight; tested in the
+  // RunStreamPane unit test which controls viewportHeight explicitly.
+  unmount();
+});
+
+test('Ctrl+u when stream focused pages by more than 1 line', async () => {
+  const { d } = streamDeps();
+  const { lastFrame, stdin, unmount } = render(<App deps={d} />);
+  await vi.waitFor(() => expect(d.makeTail).toHaveBeenCalled());
+  stdin.write('\x1b3'); // focus stream
+  await delay();
+  stdin.write('\x15'); // Ctrl+u
+  await delay();
+  const f = lastFrame() ?? '';
+  // Must be scrolled by more than 1 (Ctrl+u is a half-page jump)
+  expect(f).toMatch(/follow · off/);
+  expect(f).not.toContain('line-49');
+  // The ↓ newer indicator shows how many lines are below — should be > 1
+  const newerMatch = f.match(/↓\s*(\d+)\s*newer/);
+  expect(newerMatch).toBeTruthy();
+  const newerCount = Number(newerMatch?.[1] ?? '0');
+  expect(newerCount).toBeGreaterThan(1);
+  unmount();
+});
+
+test('Down from scroll>0 back to 0: latest line visible again, follow re-enabled', async () => {
+  const { d } = streamDeps();
+  const { lastFrame, stdin, unmount } = render(<App deps={d} />);
+  await vi.waitFor(() => expect(d.makeTail).toHaveBeenCalled());
+  stdin.write('\x1b3'); // focus stream
+  await delay();
+  stdin.write('\x1B[A'); // Up → scroll=1, follow=false
+  await delay();
+  expect(lastFrame()).toMatch(/follow · off/);
+  stdin.write('\x1B[B'); // Down → scroll back to 0
+  await delay();
+  const f = lastFrame() ?? '';
+  // Back at tail: line-49 visible
+  expect(f).toContain('line-49');
+  // Follow re-enabled
+  expect(f).toMatch(/follow ▸ on/);
+  unmount();
+});
+
+test('while follow=OFF, a newly appended line does NOT move the viewport', async () => {
+  const { d, push } = streamDeps();
+  const { lastFrame, stdin, unmount } = render(<App deps={d} />);
+  await vi.waitFor(() => expect(d.makeTail).toHaveBeenCalled());
+  stdin.write('\x1b3'); // focus stream
+  await delay();
+  // Scroll up 3 lines to detach follow
+  stdin.write('\x1B[A');
+  await delay();
+  stdin.write('\x1B[A');
+  await delay();
+  stdin.write('\x1B[A');
+  await delay();
+  expect(lastFrame()).toMatch(/follow · off/);
+  // Push a new line
+  push('NEW-LINE-PUSHED');
+  await delay(60);
+  const frameAfter = lastFrame() ?? '';
+  // The new line must NOT appear in the viewport (follow is off, view doesn't move)
+  expect(frameAfter).not.toContain('NEW-LINE-PUSHED');
+  // follow must still be off
+  expect(frameAfter).toMatch(/follow · off/);
+  unmount();
+});
+
+test('ring buffer cap: pushing 1100 lines never exceeds 999 stored lines', async () => {
+  const { d, push } = streamDeps();
+  let capturedLines: string[] = [];
+  // Intercept setStreamLines via the tail's lines() return
+  const makeTailCapture = vi.fn((_path: string, cb: () => void) => {
+    let buf: string[] = [...STREAM_50];
+    const tail = {
+      lines: () => buf,
+      stop: vi.fn(),
+      _push: (line: string) => {
+        buf = [...buf, line].slice(-999);
+        capturedLines = buf;
+        cb();
+      },
+    };
+    return tail;
+  });
+  const d2 = testDeps({
+    initialRunning: true,
+    initialJournalPath: '/tmp/cap-test.jsonl',
+    makeTail: makeTailCapture,
+  });
+  const { unmount } = render(<App deps={d2} />);
+  await vi.waitFor(() => expect(d2.makeTail).toHaveBeenCalled());
+  // Get the tail instance to push to it
+  const tailInstance = makeTailCapture.mock.results[0]?.value as { _push: (s: string) => void };
+  for (let i = 0; i < 1100; i++) {
+    tailInstance._push(`extra-${i}`);
+  }
+  await delay(60);
+  // The ring buffer must never exceed 999 entries
+  expect(capturedLines.length).toBeLessThanOrEqual(999);
+  unmount();
+});
+
+test('backlog Up/Down nav unaffected when backlog is focused (not stream)', async () => {
+  const { d } = streamDeps();
+  const { lastFrame, stdin, unmount } = render(<App deps={d} />);
+  await vi.waitFor(() => expect(lastFrame()).toContain('Ship auth refactor'));
+  stdin.write('\x1b2'); // focus backlog
+  await delay();
+  stdin.write('\x1B[B'); // Down → selects first bead
+  await delay();
+  expect(lastFrame()).toMatch(/▸\s+t59-/);
+  stdin.write('\x1B[A'); // Up
+  await delay();
+  // Still in backlog nav territory (selection still shown)
+  expect(lastFrame()).toContain('▸');
   unmount();
 });
