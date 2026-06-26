@@ -1,4 +1,4 @@
-import { Box, Text, useInput } from 'ink';
+import { Box, Text } from 'ink';
 import type { BeadLite } from '../beads-read.ts';
 import type { DashboardModel } from '../operations/dashboard-model.ts';
 import { noColor, truncate } from './format.ts';
@@ -56,18 +56,12 @@ function BeadRow({
 
 /**
  * The Backlog pane: READY / IN-PROGRESS / BLOCKED sections + a progress bar.
- * Selection/filter come in as props (held in App state, separate from polled
- * data) so a background poll never yanks the cursor. j/k/g/G move the selection
- * through the flattened, filtered list and report via `onSelect`. The Ink flex
- * layout auto-flows the sections — no manual scroll offset needed.
+ * Purely presentational — selection/filter/navigation come in as props (held
+ * in App state, separate from polled data) so a background poll never yanks
+ * the cursor (lazy-docker rule). Arrow-key navigation is owned by App's single
+ * useInput router (bead 200.2). The Ink flex layout auto-flows the sections.
  */
-export function BacklogPane({
-  model,
-  isActive,
-  selectedId,
-  filter,
-  onSelect,
-}: BacklogPaneProps): React.ReactElement {
+export function BacklogPane({ model, selectedId, filter }: BacklogPaneProps): React.ReactElement {
   const plain = noColor();
   const q = filter.trim().toLowerCase();
 
@@ -76,29 +70,6 @@ export function BacklogPane({
     { label: 'IN-PROGRESS', beads: model.inProgress.filter((b) => matches(b, q)) },
     { label: 'BLOCKED', color: 'red', beads: model.blocked.filter((b) => matches(b, q)) },
   ];
-
-  // The flattened, in-order list the cursor walks.
-  const flat = sections.flatMap((s) => s.beads);
-  const ids = flat.map((b) => b.id);
-
-  useInput(
-    (input, key) => {
-      if (ids.length === 0) return;
-      const cur = selectedId != null ? ids.indexOf(selectedId) : -1;
-      if (key.downArrow || input === 'j') {
-        const next = cur < 0 ? 0 : Math.min(cur + 1, ids.length - 1);
-        onSelect(ids[next]);
-      } else if (key.upArrow || input === 'k') {
-        const next = cur < 0 ? 0 : Math.max(cur - 1, 0);
-        onSelect(ids[next]);
-      } else if (input === 'g') {
-        onSelect(ids[0]);
-      } else if (input === 'G') {
-        onSelect(ids[ids.length - 1]);
-      }
-    },
-    { isActive },
-  );
 
   return (
     <Box flexDirection="column" flexGrow={1}>

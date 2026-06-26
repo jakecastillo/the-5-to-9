@@ -56,21 +56,6 @@ test('the live tail line + spinner render below the static history when running'
   unmount();
 });
 
-test('`f` toggles follow via onToggleFollow', async () => {
-  const onToggleFollow = vi.fn();
-  const { stdin, unmount } = wide(
-    <RunStreamPane
-      lines={[]}
-      liveLine=""
-      follow
-      isActive
-      running={false}
-      onToggleFollow={onToggleFollow}
-    />,
-  );
-  await delay();
-  stdin.write('f');
-  await delay();
-  expect(onToggleFollow).toHaveBeenCalledTimes(1);
-  unmount();
-});
+// NOTE: The `f` key handler was removed from RunStreamPane (bead 200.2 — central
+// key router). Follow is now toggled via the /follow command in App's useInput.
+// The equivalent integration test lives in AppComposition.test.tsx.

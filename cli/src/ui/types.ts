@@ -42,6 +42,8 @@ export interface AppState {
   selectedBeadId: string | null;
   /** The backlog filter string (empty = no filter). */
   filter: string;
+  /** The command-bar input buffer (empty = idle). */
+  input: string;
   /** The active modal, or null. */
   modal: ModalKind;
   /** A surfaced gate event when modal === 'gate'. */
@@ -60,6 +62,7 @@ export function initialState(): AppState {
     focusedPane: 'status',
     selectedBeadId: null,
     filter: '',
+    input: '',
     modal: null,
     gate: null,
     running: false,

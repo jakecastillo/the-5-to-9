@@ -1,5 +1,5 @@
 import { Spinner } from '@inkjs/ui';
-import { Box, Static, Text, useInput } from 'ink';
+import { Box, Static, Text } from 'ink';
 
 export interface RunStreamPaneProps {
   /** Completed journal lines from the ring buffer (already capped). */
@@ -8,35 +8,25 @@ export interface RunStreamPaneProps {
   liveLine: string;
   /** Whether follow/auto-scroll is on. */
   follow: boolean;
-  /** Whether this pane is focused (only then does `f` toggle follow). */
+  /** Whether this pane is focused (for future visual highlight). */
   isActive: boolean;
   /** Whether a run is in progress (shows the spinner). */
   running: boolean;
-  /** Called when `f` is pressed to toggle follow. */
-  onToggleFollow?: () => void;
 }
 
 /**
- * The Run Stream pane. Completed lines go through Ink's `<Static>` — rendered
- * ONCE and never repainted (and fed from the bounded ring buffer, so memory is
- * capped). Only the in-progress tail line + spinner live in re-rendering state.
- * `f` toggles follow.
+ * The Run Stream pane. Purely presentational — all keyboard handling is in
+ * App's single useInput router (bead 200.2). Completed lines go through Ink's
+ * `<Static>` — rendered ONCE and never repainted (fed from the bounded ring
+ * buffer, so memory is capped). Only the in-progress tail line + spinner live
+ * in re-rendering state.
  */
 export function RunStreamPane({
   lines,
   liveLine,
   follow,
-  isActive,
   running,
-  onToggleFollow,
 }: RunStreamPaneProps): React.ReactElement {
-  useInput(
-    (input) => {
-      if (input === 'f') onToggleFollow?.();
-    },
-    { isActive },
-  );
-
   return (
     <Box flexDirection="column" flexGrow={1}>
       <Box>

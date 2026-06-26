@@ -54,25 +54,9 @@ test('renders READY / IN-PROGRESS / BLOCKED sections, bead ids, and a progress b
   unmount();
 });
 
-test('down-arrow moves selection → onSelect fires with the next id', async () => {
-  const onSelect = vi.fn();
-  const { stdin, unmount } = wide(
-    <BacklogPane
-      model={ACTIVE_MODEL}
-      isActive
-      selectedId="t59-4a1"
-      filter=""
-      onSelect={onSelect}
-    />,
-  );
-  await delay();
-  stdin.write('\x1B[B'); // down
-  await delay();
-  expect(onSelect).toHaveBeenCalled();
-  // The next id in the flattened ready→inprogress→blocked order after t59-4a1.
-  expect(onSelect).toHaveBeenCalledWith('t59-9c2');
-  unmount();
-});
+// NOTE: Arrow-key navigation was removed from BacklogPane (bead 200.2 — central
+// key router). App's single useInput now moves selectedBeadId. The equivalent
+// integration test lives in AppComposition.test.tsx.
 
 test('selection is preserved across a poll (rerender with same ids keeps highlight)', () => {
   const r = wide(

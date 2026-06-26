@@ -1,10 +1,11 @@
 import { Box, Text, useApp, useInput, useStdout } from 'ink';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { resolve as defaultResolve } from '../consent.ts';
 import type { DashboardModel } from '../operations/dashboard-model.ts';
 import type { RunHandle, RunOpts } from '../operations/run.ts';
 import { BacklogPane } from './BacklogPane.tsx';
 import { ClockInModal } from './ClockInModal.tsx';
+import { CommandBar } from './CommandBar.tsx';
 import { Footer } from './Footer.tsx';
 import { GateModal } from './GateModal.tsx';
 import { GateNotice } from './GateNotice.tsx';
@@ -13,6 +14,8 @@ import { RunStreamPane } from './RunStreamPane.tsx';
 import { ShiftReportView } from './ShiftReportView.tsx';
 import { StaticStatusDump } from './StaticStatusDump.tsx';
 import { StatusBar } from './StatusBar.tsx';
+import { resolveCommand } from './command-parse.ts';
+import type { CommandContext } from './commands.ts';
 import type { Pane } from './keymap.ts';
 import { type JournalTail, tailJournal } from './tail.ts';
 import { type AppState, initialState } from './types.ts';
@@ -58,7 +61,7 @@ export interface AppProps {
 /**
  * The root TUI component. Owns the single top-level state object + the poll
  * interval + the journal tail. `useInput` dispatches every key through the
- * single keymap. Quitting stops the poller and tail but NEVER kills the
+ * single key router. Quitting stops the poller and tail but NEVER kills the
  * detached driver (the viewer is a separate process).
  */
 export function App({ initial, rawModeSupported = true, deps = {} }: AppProps): React.ReactElement {
@@ -153,7 +156,7 @@ export function App({ initial, rawModeSupported = true, deps = {} }: AppProps): 
   }, [ui.running]);
 
   const onRun = useCallback(async () => {
-    if (runningRef.current) return; // already running — ignore the duplicate 'r'
+    if (runningRef.current) return; // already running — ignore the duplicate
     runningRef.current = true;
     if (startRun == null) {
       setUi((s) => ({ ...s, running: true, focusedPane: 'stream' }));
@@ -164,8 +167,6 @@ export function App({ initial, rawModeSupported = true, deps = {} }: AppProps): 
     setUi((s) => ({ ...s, running: true, focusedPane: 'stream' }));
   }, [startRun]);
 
-  const onToggleFollow = useCallback(() => setUi((s) => ({ ...s, follow: !s.follow })), []);
-
   // Stop the viewer's owned resources WITHOUT killing the detached driver.
   const teardownViewer = useCallback(() => {
     tailRef.current?.stop();
@@ -174,10 +175,104 @@ export function App({ initial, rawModeSupported = true, deps = {} }: AppProps): 
 
   const shiftActive = model?.state.active ?? false;
 
-  // The single keyboard dispatcher — every binding is driven by the keymap.
+  // ---------------------------------------------------------------------------
+  // CommandContext: the seam every command handler calls. Methods call the real
+  // facade/state setters. No command imports these directly — fully injectable
+  // for tests via the facade mock (AppDeps).
+  // ---------------------------------------------------------------------------
+  const ctx: CommandContext = {
+    clockIn: (goal) => {
+      // If no goal was supplied, open the interactive modal; otherwise the
+      // operations facade would handle it (real integration is a follow-up).
+      if (!goal) {
+        setUi((s) => ({ ...s, modal: 'clock-in' }));
+      } else {
+        // For now, open the modal; the user can adjust the goal there.
+        setUi((s) => ({ ...s, modal: 'clock-in' }));
+      }
+    },
+    clockOut: () => {
+      teardownViewer();
+      setUi((s) => ({ ...s, modal: 'report', running: false }));
+    },
+    run: () => {
+      void onRun();
+    },
+    status: () => {
+      setStreamLines((lines) => [...lines.slice(-999), '[status] reading shift state…']);
+      setUi((s) => ({ ...s, focusedPane: 'stream' }));
+    },
+    doctor: () => {
+      setStreamLines((lines) => [...lines.slice(-999), '[doctor] preflight check…']);
+      setUi((s) => ({ ...s, focusedPane: 'stream' }));
+    },
+    configGet: (key) => {
+      const label = key ?? '(all)';
+      setStreamLines((lines) => [...lines.slice(-999), `[config get] ${label}`]);
+      setUi((s) => ({ ...s, focusedPane: 'stream' }));
+    },
+    configSet: (key, value) => {
+      setStreamLines((lines) => [...lines.slice(-999), `[config set] ${key}=${value}`]);
+      setUi((s) => ({ ...s, focusedPane: 'stream' }));
+    },
+    gate: (action, id) => {
+      const label = id ? ` ${id}` : '';
+      setStreamLines((lines) => [
+        ...lines.slice(-999),
+        `[gate] ${action}${label} — see the gate modal for interactive consent`,
+      ]);
+      setUi((s) => ({ ...s, focusedPane: 'stream' }));
+    },
+    filter: (query) => {
+      setUi((s) => ({ ...s, filter: query }));
+    },
+    follow: () => {
+      setUi((s) => ({ ...s, follow: !s.follow }));
+    },
+    clear: () => {
+      setStreamLines([]);
+    },
+    help: () => {
+      setUi((s) => ({ ...s, modal: 'help' }));
+    },
+    quit: () => {
+      // Quitting NEVER kills the driver. With a live shift, confirm first.
+      if (shiftActive) {
+        setUi((s) => ({ ...s, modal: 'quit-confirm' }));
+      } else {
+        teardownViewer();
+        exit();
+      }
+    },
+    notify: (message) => {
+      setStreamLines((lines) => [...lines.slice(-999), `[notice] ${message}`]);
+      setUi((s) => ({ ...s, focusedPane: 'stream' }));
+    },
+  };
+
+  // ---------------------------------------------------------------------------
+  // Flat bead id list for arrow-key navigation (memoised; recomputes on poll).
+  // ---------------------------------------------------------------------------
+  const flatBeadIds = useMemo(() => {
+    if (!model) return [];
+    const q = ui.filter.trim().toLowerCase();
+    const hit = (b: { id: string; title: string; status?: string | null }) =>
+      q === '' || `${b.id} ${b.title} ${b.status ?? ''}`.toLowerCase().includes(q);
+    return [
+      ...model.ready.filter(hit),
+      ...model.inProgress.filter(hit),
+      ...model.blocked.filter(hit),
+    ].map((b) => b.id);
+  }, [model, ui.filter]);
+
+  // ---------------------------------------------------------------------------
+  // Single keyboard dispatcher. All input flows through here; pane components
+  // are now purely presentational. Modals that own the full screen (gate/help/
+  // clock-in/report) handle their own useInput internally — App returns early
+  // to avoid interference.
+  // ---------------------------------------------------------------------------
   useInput((input, key) => {
-    // Modals trap their own input (handled inside the modal components), except
-    // the quit-confirm which we resolve here.
+    // The quit-confirm is NOT a full-screen modal — App resolves it inline.
     if (ui.modal === 'quit-confirm') {
       if (input === 'y' || key.return) {
         teardownViewer();
@@ -187,27 +282,63 @@ export function App({ initial, rawModeSupported = true, deps = {} }: AppProps): 
       }
       return;
     }
-    if (ui.modal != null) return; // other modals own input
+    // Full-screen modals (gate / help / clock-in / report) trap their own input.
+    if (ui.modal != null) return;
 
-    if (input === '1') return focus('status');
-    if (input === '2') return focus('backlog');
-    if (input === '3') return focus('stream');
+    // Ctrl+1/2/3 focus (sent as Alt+1/2/3 = \x1bN; meta+digit in ink's model).
+    // Bare 1/2/3 now type into the command buffer.
+    if (key.meta && input === '1') return focus('status');
+    if (key.meta && input === '2') return focus('backlog');
+    if (key.meta && input === '3') return focus('stream');
+
+    // Tab / Shift+Tab cycle pane focus.
     if (key.tab) return cyclePane(key.shift ? -1 : 1);
-    if (input === '?') return setUi((s) => ({ ...s, modal: 'help' }));
-    if (input === 'c') return setUi((s) => ({ ...s, modal: 'clock-in' }));
-    // `f` toggles follow but ONLY when the Run Stream is focused — that binding
-    // lives in RunStreamPane (its useInput is isActive-gated), driving the
-    // onToggleFollow we pass below. Handling it here too would double-toggle.
-    if (input === 'r' && shiftActive) return void onRun();
-    if (input === 'o' && shiftActive) {
-      teardownViewer();
-      return setUi((s) => ({ ...s, modal: 'report', running: false }));
+
+    // Arrow keys: navigate the focused backlog or (future) scroll the stream.
+    if (key.upArrow || key.downArrow) {
+      if (ui.focusedPane === 'backlog' && flatBeadIds.length > 0) {
+        const cur = ui.selectedBeadId != null ? flatBeadIds.indexOf(ui.selectedBeadId) : -1;
+        const next = key.downArrow
+          ? cur < 0
+            ? 0
+            : Math.min(cur + 1, flatBeadIds.length - 1)
+          : cur < 0
+            ? 0
+            : Math.max(cur - 1, 0);
+        setUi((s) => ({ ...s, selectedBeadId: flatBeadIds[next] }));
+      }
+      return;
     }
-    if (input === 'q') {
-      // Quitting NEVER kills the driver. With a live shift, confirm first.
-      if (shiftActive) return setUi((s) => ({ ...s, modal: 'quit-confirm' }));
-      teardownViewer();
-      exit();
+
+    // Esc: clear the command buffer (and close the palette when 200.3 lands).
+    if (key.escape) {
+      setUi((s) => ({ ...s, input: '' }));
+      return;
+    }
+
+    // Enter: dispatch the command buffer (non-empty) or no-op (empty).
+    if (key.return) {
+      const raw = ui.input.trim();
+      if (raw === '') return;
+      const result = resolveCommand(raw);
+      if (result.ok) {
+        void result.spec.run(ctx, result.parsed);
+      } else {
+        ctx.notify(result.error);
+      }
+      setUi((s) => ({ ...s, input: '' }));
+      return;
+    }
+
+    // Backspace / Delete: remove the last character from the buffer.
+    if (key.backspace || key.delete) {
+      setUi((s) => ({ ...s, input: s.input.slice(0, -1) }));
+      return;
+    }
+
+    // Printable characters (no Ctrl/Meta modifier) → append to the buffer.
+    if (input.length > 0 && !key.ctrl && !key.meta) {
+      setUi((s) => ({ ...s, input: s.input + input }));
     }
   });
 
@@ -292,12 +423,12 @@ export function App({ initial, rawModeSupported = true, deps = {} }: AppProps): 
           follow={ui.follow}
           isActive={ui.focusedPane === 'stream'}
           running={ui.running}
-          onToggleFollow={onToggleFollow}
         />
       </Box>
       {ui.modal === 'quit-confirm' && (
         <Text>Quit the viewer? The run keeps going in the background. (y/n)</Text>
       )}
+      <CommandBar value={ui.input} />
       <Footer pane={ui.focusedPane} shiftActive={shiftActive} />
     </Box>
   );
