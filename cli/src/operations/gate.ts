@@ -26,8 +26,7 @@ export function gatePending(deps: ConsentDeps = {}): GateResult {
   }
   const lines = pending.map(
     (p) =>
-      `${p.id}\n  category: ${p.category}\n  command:  ${p.command}\n  token:    ${p.token}\n` +
-      `  approve:  the-5-to-9 gate approve ${p.id} --token ${p.token}`,
+      `${p.id}\n  category: ${p.category}\n  command:  ${p.command}\n  token:    ${p.token}\n  to approve/deny: run the-5-to-9 in a TTY — the gate modal appears automatically`,
   );
   return { ok: true, message: `${pending.length} pending:\n${lines.join('\n')}` };
 }

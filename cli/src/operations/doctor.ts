@@ -79,7 +79,7 @@ export async function doctor(deps: DoctorDeps = {}): Promise<DoctorReport> {
         ? hasBackend
           ? `backend CLI '${backend}' found`
           : `backend CLI '${backend}' not found`
-        : 'no backend selected (set one with `the-5-to-9 config set backend <claude|codex|api>`)',
+        : 'no backend selected (set FIVE_TO_NINE_BACKEND, or use `/config set backend <claude|codex|api>` in the TUI)',
     },
   ];
 

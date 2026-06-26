@@ -1,8 +1,7 @@
 #!/usr/bin/env node
-// the-5-to-9 CLI entrypoint. Dispatches to the commander program and maps the
-// returned exit code onto the process. A bare invocation (or `dashboard
-// --watch`) launches the interactive Ink TUI; a non-TTY degrades to a plain
-// status dump.
+// the-5-to-9 CLI entrypoint. Launches the Ink TUI and maps the exit code onto
+// the process. Every invocation (bare or any args) enters the TUI; a non-TTY
+// degrades to a plain status dump.
 import { runCli } from './cli.ts';
 
 // Use an explicit .then(process.exit) rather than a top-level `await` so Node

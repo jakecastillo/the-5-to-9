@@ -28,6 +28,21 @@ test('App in non-raw stdin falls back to StaticStatusDump (no interactive layout
   unmount();
 });
 
+test('StaticStatusDump off-TTY start-hint uses TUI guidance, not the dead clock-in subcommand', () => {
+  // Bug z8e: "run `the-5-to-9 clock-in <goal>` to start one" was a dead CLI
+  // reference after the commander surface was removed. The off-TTY dump must
+  // guide the operator to the TUI command bar instead.
+  const { lastFrame, unmount } = render(
+    <App initial={{ model: IDLE_MODEL }} rawModeSupported={false} />,
+  );
+  const frame = lastFrame() ?? '';
+  // Must NOT contain the dead CLI form.
+  expect(frame).not.toMatch(/the-5-to-9 clock-in/);
+  // Must guide to the TUI / command bar.
+  expect(frame).toMatch(/\/clock-in|command bar|terminal/i);
+  unmount();
+});
+
 // A poll read pinned to the pending-gate model so the consent stays surfaced
 // across ticks (the real getDashboardModel would read the test cwd and clobber).
 const pendingRead = () => Promise.resolve(PENDING_GATE_MODEL);
@@ -54,16 +69,15 @@ test('App: a non-TTY NEVER shows the gate modal even with a pending consent', as
   unmount();
 });
 
-test('App: a non-TTY prints the scriptable approve instruction instead of a modal', async () => {
+test('App: a non-TTY prints the approve/deny instruction instead of a modal', async () => {
   const { lastFrame, unmount } = wide(
     <App deps={{ read: pendingRead }} rawModeSupported={false} />,
   );
   await delay();
   const f = lastFrame() ?? '';
-  // Consent stays automatable: the dump names the scriptable approve command.
-  expect(f).toMatch(/gate approve/i);
+  // Consent stays resolvable: the dump tells the operator to run in a TTY.
+  expect(f).toMatch(/to resolve/i);
   expect(f).toContain('c-abc'); // the pending id
-  expect(f).toMatch(/--token/);
   unmount();
 });
 

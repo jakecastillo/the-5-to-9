@@ -52,3 +52,49 @@ test('gatePending lists a legitimate pending record (safe id, matched JSON id)',
   expect(result.message).toContain(p.id);
   expect(result.message).toContain('gh release create v1');
 });
+
+// ── Bug wdb: gateApprove + gateDeny coverage (previously only via cli.test.ts) ─
+
+import { readResolution } from '../consent.ts';
+import { gateApprove, gateDeny } from './gate.ts';
+
+test('gateApprove with a WRONG token → {ok:false}, no approval written (fail-closed)', () => {
+  const dir = stateDir();
+  const p = requestConsent({ command: 'deploy prod', category: 'deploy' }, { stateDir: dir });
+  const r = gateApprove(p.id, 'WRONG_TOKEN', { stateDir: dir });
+  expect(r.ok).toBe(false);
+  // INVARIANT: a wrong token must never approve and must never write a resolution.
+  expect(readResolution(p.id, { stateDir: dir })).toBeNull();
+});
+
+test('gateApprove with a MISSING (undefined) token → {ok:false}, no approval written', () => {
+  const dir = stateDir();
+  const p = requestConsent({ command: 'deploy prod', category: 'deploy' }, { stateDir: dir });
+  const r = gateApprove(p.id, undefined, { stateDir: dir });
+  expect(r.ok).toBe(false);
+  expect(readResolution(p.id, { stateDir: dir })).toBeNull();
+});
+
+test('gateApprove with an EMPTY token → {ok:false}, no approval written', () => {
+  const dir = stateDir();
+  const p = requestConsent({ command: 'deploy prod', category: 'deploy' }, { stateDir: dir });
+  const r = gateApprove(p.id, '', { stateDir: dir });
+  expect(r.ok).toBe(false);
+  expect(readResolution(p.id, { stateDir: dir })).toBeNull();
+});
+
+test('gateApprove with the CORRECT token → {ok:true}, approved resolution written', () => {
+  const dir = stateDir();
+  const p = requestConsent({ command: 'deploy prod', category: 'deploy' }, { stateDir: dir });
+  const r = gateApprove(p.id, p.token, { stateDir: dir });
+  expect(r.ok).toBe(true);
+  expect(readResolution(p.id, { stateDir: dir })?.approved).toBe(true);
+});
+
+test('gateDeny → {ok:true}, denied resolution written', () => {
+  const dir = stateDir();
+  const p = requestConsent({ command: 'deploy prod', category: 'deploy' }, { stateDir: dir });
+  const r = gateDeny(p.id, { stateDir: dir });
+  expect(r.ok).toBe(true);
+  expect(readResolution(p.id, { stateDir: dir })?.approved).toBe(false);
+});

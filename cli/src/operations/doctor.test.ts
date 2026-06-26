@@ -48,3 +48,15 @@ test('doctor: missing bd is reported but does not fail ok (bd is optional)', asy
   expect(report.checks.find((c) => c.name === 'bd')?.ok).toBe(false);
   expect(report.ok).toBe(true);
 });
+
+test('doctor: no-backend detail does not reference the dead CLI subcommand', async () => {
+  // Bug gzi: "set one with `the-5-to-9 config set backend …`" was a dead
+  // reference after the commander surface was removed. The hint must point to
+  // the surviving ways to set a backend (env var or TUI command).
+  const report = await doctor({ nodeVersion: 'v20.19.0', hasBd: true, hasBackend: true });
+  const detail = report.checks.find((c) => c.name === 'backend')?.detail ?? '';
+  // Must NOT contain the dead CLI form.
+  expect(detail).not.toMatch(/the-5-to-9 config set/);
+  // Must mention the env var or the TUI form.
+  expect(detail).toMatch(/FIVE_TO_NINE_BACKEND|\/config set/i);
+});

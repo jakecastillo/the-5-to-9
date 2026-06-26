@@ -14,10 +14,10 @@ function PendingGateNotice({ pg }: { pg: PendingGate }): React.ReactElement {
       <Text>
         category: {pg.category} · command: {pg.command ?? pg.segment}
       </Text>
+      <Text>to resolve: run the-5-to-9 in a TTY — the gate modal appears automatically</Text>
       <Text>
-        approve: the-5-to-9 gate approve {pg.id} --token {pg.token}
+        pending id: {pg.id} · token: {pg.token}
       </Text>
-      <Text>deny: the-5-to-9 gate deny {pg.id}</Text>
     </Box>
   );
 }
@@ -34,7 +34,9 @@ export function StaticStatusDump({ model }: { model: DashboardModel | null }): R
     return (
       <Box flexDirection="column">
         <Text>The 5 to 9 — no active shift</Text>
-        <Text>run `the-5-to-9 clock-in &lt;goal&gt;` to start one</Text>
+        <Text>
+          run the-5-to-9 in a terminal, then type /clock-in &lt;goal&gt; in the command bar
+        </Text>
         {pg?.id != null && <PendingGateNotice pg={pg} />}
       </Box>
     );
