@@ -12,10 +12,10 @@
 
 The 5 to 9 is an autonomous **AI night-shift crew** for your repo. It clocks in a small team of role-agents — a developer, an independent QA inspector, a security reviewer, a merge gate — that work a [beads](https://github.com/steveyegge/beads) backlog in parallel and ralph-loop your code to done on a dedicated shift branch. Hands-off, test-gated, with hard stops only on irreversible actions. Funny on the surface, rigorous underneath.
 
-**Two ways to run it** — as a Claude Code plugin (`/clock-in`), or as a standalone npm CLI that needs no Claude Code at all:
+**Two ways to run it** — as a Claude Code plugin (`/clock-in`), or as a standalone terminal app (an Ink TUI) that needs no Claude Code at all:
 
 ```bash
-npx the-5-to-9 clock-in "ship the thing"      # or install globally: npm i -g the-5-to-9
+npx the-5-to-9      # launches the TUI; drive it from the command bar — type / for commands
 ```
 
 Under the hood it's a deliberately portable core (`AGENTS.md` + skills + bash + beads + MCP) that also runs under Codex full-auto and other AGENTS.md-aware agents (native Codex/Cursor plugin wiring is [phase-2](#status)).
@@ -112,27 +112,19 @@ bash scripts/night-shift.sh --max-iterations 25
 **3. SDK driver — `scripts/clock-in-dispatch.sh --driver`**
 A deterministic TypeScript runtime (K=1 on subscription backends like Claude/Codex; K≥2 needs `--backend api`). Requires Node ≥ 20 and `pnpm install` in `driver/`.
 
-**4. Standalone CLI — `the-5-to-9` (no Claude Code required)**
-A pure-Node CLI you can install from npm and run anywhere. It drives the same shift state, the same beads backlog, and the same irreversible-action gate as the plugin — just from your own terminal. Requires Node ≥ 20.19.
+**4. Standalone TUI — `the-5-to-9` (no Claude Code required)**
+A pure-Node terminal app (an Ink TUI) you can install from npm and run anywhere. It drives the same shift state, the same beads backlog, and the same irreversible-action gate as the plugin — just from your own terminal. Requires Node ≥ 20.19.
 
 ```bash
-# one-off
-npx the-5-to-9 status
+# one-off — launches the interactive TUI
+npx the-5-to-9
 
 # or install globally
 npm i -g the-5-to-9
-the-5-to-9 clock-in "ship the thing"
+the-5-to-9
 ```
 
-| Subcommand | What it does |
-| --- | --- |
-| `clock-in [goal...]` | Open a shift: write state and switch to a dedicated `the-5-to-9/shift-<date>` branch (`--no-branch` to skip). |
-| `clock-out` | Close the shift, archive state, print the run summary. |
-| `status` | Print the current shift state + backlog counts (read-only). |
-| `dashboard` | One-shot dashboard view; `--watch` launches the live interactive Ink TUI (also the bare `the-5-to-9` default). |
-| `run` | Start a detached driver run (`--backend`, `--max-iterations`, `-K`). |
-| `config get\|set` | Read/write CLI config (`backend`, `maxIterations`) under `~/.config/the-5-to-9/`. |
-| `doctor` | Preflight: Node version, `bd`, and the selected backend CLI. |
+It boots straight into an always-on **command bar**: type `/` for a fuzzy command palette (`/clock-in`, `/run`, `/clock-out`, `/status`, `/help`, …), or type bare text to live-filter the backlog. Arrows + `Alt+1/2/3` move around the panes; `Ctrl+C` quits without killing the run. Full vocabulary in [cli/README.md](cli/README.md).
 
 Same crew, same gates, same beads backlog every way — the difference is how long you leave it alone and which runtime drives.
 
