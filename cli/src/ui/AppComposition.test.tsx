@@ -2,6 +2,7 @@ import { render } from 'ink-testing-library';
 import { expect, test, vi } from 'vitest';
 import { App } from './App.tsx';
 import { ACTIVE_MODEL, IDLE_MODEL } from './fixtures.ts';
+import { footerFor } from './keymap.ts';
 
 const delay = (ms = 40) => new Promise((r) => setTimeout(r, ms));
 
@@ -27,29 +28,36 @@ function testDeps(overrides: Record<string, unknown> = {}) {
 // Pane focus via Ctrl+1/2/3 (sent as Alt+1/2/3 = \x1bN in terminal; meta+digit in ink)
 // ---------------------------------------------------------------------------
 
-test('Alt+1/2/3 move pane focus — stream gets f-follow, backlog gets g/G top/bottom', async () => {
+test('Alt+1/2/3 move pane focus — arrows respect focused pane', async () => {
   const d = testDeps();
   const { lastFrame, stdin, unmount } = render(<App deps={d} />);
   await vi.waitFor(() => expect(lastFrame()).toContain('Ship auth refactor'));
   stdin.write('\x1b3'); // Alt+3 → focus Run Stream
   await delay();
-  // 'f follow' is a stream-only footer binding
-  expect(lastFrame()).toContain('f follow');
+  stdin.write('\x1B[B'); // Down while stream focused → no backlog nav
+  await delay();
+  // No bead row should carry the selection marker (▸ <beadId>) when stream is focused.
+  // Note: RunStreamPane shows "▸ on" (follow), so we check bead-id patterns specifically.
+  expect(lastFrame()).not.toMatch(/▸\s+t59-/);
   stdin.write('\x1b2'); // Alt+2 → focus Backlog
   await delay();
-  // 'g/G top/bottom' is a backlog-only footer binding
-  expect(lastFrame()).toContain('g/G top/bottom');
+  stdin.write('\x1B[B'); // Down while backlog focused → selects first bead
+  await delay();
+  // After focus switch + Down, a bead row gains the ▸ marker
+  expect(lastFrame()).toMatch(/▸\s+t59-/);
   unmount();
 });
 
-test('Tab / Shift+Tab cycle pane focus', async () => {
+test('Tab cycles pane focus forward (buffer empty → pane cycle, not palette complete)', async () => {
   const d = testDeps();
   const { lastFrame, stdin, unmount } = render(<App deps={d} />);
   await vi.waitFor(() => expect(lastFrame()).toContain('Ship auth refactor'));
-  stdin.write('\t'); // Tab → cycle forward from status
+  stdin.write('\t'); // Tab → cycle forward from status to backlog
   await delay();
-  // After one Tab from status, focus is backlog (status→backlog→stream)
-  expect(lastFrame()).toContain('g/G top/bottom');
+  // After one Tab from status, focus is backlog — pressing Down navigates the backlog
+  stdin.write('\x1B[B');
+  await delay();
+  expect(lastFrame()).toContain('▸'); // selection appeared → backlog is focused
   unmount();
 });
 
@@ -289,5 +297,225 @@ test('idle shift renders without crashing', async () => {
   const { lastFrame, unmount } = render(<App deps={d} />);
   await delay();
   expect(lastFrame()).toMatch(/no active shift|The 5 to 9/);
+  unmount();
+});
+
+// ---------------------------------------------------------------------------
+// Bead 200.3: CommandPalette + live bare-text filter
+// ---------------------------------------------------------------------------
+
+test('/ru shows the command palette with run ranked first (▸ glyph + argHint)', async () => {
+  const d = testDeps();
+  const { lastFrame, stdin, unmount } = render(<App deps={d} />);
+  await vi.waitFor(() => expect(lastFrame()).toContain('Ship auth refactor'));
+  stdin.write('/ru');
+  await delay();
+  const frame = lastFrame() ?? '';
+  const lines = frame.split('\n').filter((l) => l.trim().length > 0);
+  const runLine = lines.find((l) => l.includes('/run'));
+  expect(runLine).toBeTruthy();
+  // first match row has the ▸ selected glyph
+  const firstMatchIdx = lines.findIndex((l) => l.includes('/run'));
+  expect(lines[firstMatchIdx]).toContain('▸');
+  // argHint is visible
+  expect(frame).toContain('--max-iterations');
+  unmount();
+});
+
+test('Tab with palette open completes the buffer to the selected command', async () => {
+  const d = testDeps();
+  const { lastFrame, stdin, unmount } = render(<App deps={d} />);
+  await vi.waitFor(() => expect(lastFrame()).toContain('Ship auth refactor'));
+  stdin.write('/ru');
+  await delay();
+  stdin.write('\t'); // Tab → complete to /run (+ trailing space for args)
+  await delay();
+  // The buffer is now /run (trailing space may be stripped by terminal renderer)
+  expect(lastFrame()).toContain('> /run');
+  // Palette still shows the completed command
+  expect(lastFrame()).toContain('/run');
+  unmount();
+});
+
+test('Down/Up arrows move palette selection when buffer starts with /', async () => {
+  const d = testDeps();
+  const { lastFrame, stdin, unmount } = render(<App deps={d} />);
+  await vi.waitFor(() => expect(lastFrame()).toContain('Ship auth refactor'));
+  stdin.write('/'); // show full palette; clock-in is registry-order first
+  await delay();
+  stdin.write('\x1B[B'); // Down → move selection to index 1
+  await delay();
+  const frame = lastFrame() ?? '';
+  const lines = frame.split('\n').filter((l) => l.trim().length > 0);
+  const clockInIdx = lines.findIndex((l) => l.includes('/clock-in'));
+  const clockOutIdx = lines.findIndex((l) => l.includes('/clock-out'));
+  expect(clockInIdx).toBeGreaterThanOrEqual(0);
+  expect(clockOutIdx).toBeGreaterThanOrEqual(0);
+  // clock-in (index 0) should NOT be selected; clock-out (index 1) should be
+  expect(lines[clockInIdx]).not.toContain('▸');
+  expect(lines[clockOutIdx]).toContain('▸');
+  unmount();
+});
+
+test('Enter on /ru dispatches the selected run command (palette selection fills in the verb)', async () => {
+  const d = testDeps();
+  const { lastFrame, stdin, unmount } = render(<App deps={d} />);
+  await vi.waitFor(() => expect(lastFrame()).toContain('Ship auth refactor'));
+  stdin.write('/ru'); // palette shows run first (selectedIndex=0)
+  await delay();
+  stdin.write('\r'); // Enter → dispatches run via palette
+  await delay();
+  expect(d.startRun).toHaveBeenCalledTimes(1);
+  // buffer cleared after dispatch
+  expect(lastFrame()).not.toContain('> /ru');
+  unmount();
+});
+
+test('bare text (no slash) live-filters the backlog and shows filter indicator', async () => {
+  const d = testDeps();
+  const { lastFrame, stdin, unmount } = render(<App deps={d} />);
+  await vi.waitFor(() => expect(lastFrame()).toContain('Ship auth refactor'));
+  stdin.write('add');
+  await delay();
+  const frame = lastFrame() ?? '';
+  // The filter indicator shows
+  expect(frame).toMatch(/filter.*add/i);
+  // The matching bead is visible
+  expect(frame).toContain('add token rotation');
+  // Non-matching beads are filtered out
+  expect(frame).not.toContain('wire refresh endpoint');
+  // No palette (bare text, no slash)
+  expect(frame).not.toContain('/clock-in');
+  unmount();
+});
+
+test('Esc clears the buffer AND the live filter (non-matching beads reappear)', async () => {
+  const d = testDeps();
+  const { lastFrame, stdin, unmount } = render(<App deps={d} />);
+  await vi.waitFor(() => expect(lastFrame()).toContain('Ship auth refactor'));
+  stdin.write('add');
+  await delay();
+  expect(lastFrame()).not.toContain('wire refresh endpoint');
+  stdin.write('\x1B'); // Esc
+  await delay();
+  // buffer cleared
+  expect(lastFrame()).not.toContain('> add');
+  // filter cleared — filtered-out bead is visible again
+  expect(lastFrame()).toContain('wire refresh endpoint');
+  unmount();
+});
+
+test('/zzz + Enter surfaces a notify error (no palette match → did-you-mean hint)', async () => {
+  const d = testDeps();
+  const { lastFrame, stdin, unmount } = render(<App deps={d} />);
+  await vi.waitFor(() => expect(lastFrame()).toContain('Ship auth refactor'));
+  stdin.write('/zzz');
+  await delay();
+  stdin.write('\r');
+  await delay();
+  expect(lastFrame()).toMatch(/unknown command|zzz/i);
+  unmount();
+});
+
+test('empty buffer with no active shift shows the clock-in placeholder', async () => {
+  const d = testDeps({ read: vi.fn(async () => IDLE_MODEL) });
+  const { lastFrame, unmount } = render(<App deps={d} />);
+  await delay(60);
+  const frame = lastFrame() ?? '';
+  expect(frame).toContain('/clock-in');
+  expect(frame).toContain('to start a shift');
+  unmount();
+});
+
+// ---------------------------------------------------------------------------
+// Bead 200.4: ? disambiguation + keymap single source of truth
+// ---------------------------------------------------------------------------
+
+test('? on empty buffer opens the help overlay', async () => {
+  const d = testDeps();
+  const { lastFrame, stdin, unmount } = render(<App deps={d} />);
+  await vi.waitFor(() => expect(lastFrame()).toContain('Ship auth refactor'));
+  stdin.write('?'); // buffer is empty → opens help
+  await delay();
+  expect(lastFrame()).toMatch(/Keys|help/i);
+  unmount();
+});
+
+test('? with a non-empty buffer appends as a literal character', async () => {
+  const d = testDeps();
+  const { lastFrame, stdin, unmount } = render(<App deps={d} />);
+  await vi.waitFor(() => expect(lastFrame()).toContain('Ship auth refactor'));
+  stdin.write('hello');
+  await delay();
+  stdin.write('?');
+  await delay();
+  expect(lastFrame()).toContain('> hello?');
+  unmount();
+});
+
+test('Footer text is generated from the KEYMAP table (single source of truth, no drift)', async () => {
+  const d = testDeps();
+  const { lastFrame, unmount } = render(<App deps={d} />);
+  await vi.waitFor(() => expect(lastFrame()).toContain('Ship auth refactor'));
+  const frame = lastFrame() ?? '';
+  // The footer renders from footerFor. The test terminal width (80 cols) truncates the full
+  // string, so we verify the first couple of bindings which are guaranteed to be visible.
+  // The Footer.test.tsx suite has the definitive width=200 equality assertion.
+  const expected = footerFor('status', true);
+  const firstBinding = expected.split(' · ')[0]; // e.g. "/ commands"
+  const secondBinding = expected.split(' · ')[1]; // e.g. "↑/↓ move"
+  expect(frame).toContain(firstBinding);
+  expect(frame).toContain(secondBinding);
+  // Old dead single-letter bindings must NOT appear
+  expect(frame).not.toContain('j/k');
+  expect(frame).not.toContain('g/G');
+  unmount();
+});
+
+// ---------------------------------------------------------------------------
+// Bead cer: palette Down must NOT advance backlog selection (mutual exclusion)
+// ---------------------------------------------------------------------------
+
+test('palette open: Down advances palette selection but leaves backlog cursor unchanged', async () => {
+  const d = testDeps();
+  const { lastFrame, stdin, unmount } = render(<App deps={d} />);
+  await vi.waitFor(() => expect(lastFrame()).toContain('Ship auth refactor'));
+
+  // Focus the backlog pane and select the first bead via Down
+  stdin.write('\x1b2'); // Alt+2 → focus backlog
+  await delay();
+  stdin.write('\x1B[B'); // Down → select t59-4a1 (first bead)
+  await delay();
+
+  // Confirm t59-4a1 is selected (has ▸) and t59-9c2 is not
+  const frameBefore = lastFrame() ?? '';
+  const linesBefore = frameBefore.split('\n');
+  const bead1Before = linesBefore.find((l) => l.includes('t59-4a1'));
+  const bead2Before = linesBefore.find((l) => l.includes('t59-9c2'));
+  expect(bead1Before).toMatch(/▸/); // first bead selected
+  expect(bead2Before).not.toMatch(/▸/); // second bead not selected
+
+  // Open the palette by typing '/'
+  stdin.write('/');
+  await delay();
+
+  // Now press Down — this should advance the PALETTE index (0 → 1),
+  // NOT the backlog cursor (which should remain on t59-4a1).
+  stdin.write('\x1B[B');
+  await delay();
+
+  const frameAfter = lastFrame() ?? '';
+  const linesAfter = frameAfter.split('\n');
+
+  // (a) Palette selection advanced: clock-out (2nd registry entry) has ▸
+  const clockOutLine = linesAfter.find((l) => l.includes('/clock-out'));
+  expect(clockOutLine).toBeDefined();
+  expect(clockOutLine).toMatch(/▸/);
+
+  // (b) Backlog cursor is unchanged: t59-4a1 still selected, t59-9c2 not
+  const bead1After = linesAfter.find((l) => l.includes('t59-4a1'));
+  const bead2After = linesAfter.find((l) => l.includes('t59-9c2'));
+  expect(bead1After).toMatch(/▸/); // still on first bead
+  expect(bead2After).not.toMatch(/▸/); // second bead still NOT selected
   unmount();
 });

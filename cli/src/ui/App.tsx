@@ -6,6 +6,7 @@ import type { RunHandle, RunOpts } from '../operations/run.ts';
 import { BacklogPane } from './BacklogPane.tsx';
 import { ClockInModal } from './ClockInModal.tsx';
 import { CommandBar } from './CommandBar.tsx';
+import { CommandPalette } from './CommandPalette.tsx';
 import { Footer } from './Footer.tsx';
 import { GateModal } from './GateModal.tsx';
 import { GateNotice } from './GateNotice.tsx';
@@ -14,8 +15,10 @@ import { RunStreamPane } from './RunStreamPane.tsx';
 import { ShiftReportView } from './ShiftReportView.tsx';
 import { StaticStatusDump } from './StaticStatusDump.tsx';
 import { StatusBar } from './StatusBar.tsx';
-import { resolveCommand } from './command-parse.ts';
-import type { CommandContext } from './commands.ts';
+import { matchesFilter } from './backlog-filter.ts';
+import { parseCommandLine, resolveCommand } from './command-parse.ts';
+import { type CommandContext, commandNames, findCommand } from './commands.ts';
+import { fuzzyRank } from './fuzzy.ts';
 import type { Pane } from './keymap.ts';
 import { type JournalTail, tailJournal } from './tail.ts';
 import { type AppState, initialState } from './types.ts';
@@ -251,19 +254,24 @@ export function App({ initial, rawModeSupported = true, deps = {} }: AppProps): 
   };
 
   // ---------------------------------------------------------------------------
+  // effectiveFilter: derived from the buffer when it is non-empty bare text,
+  // falling back to the persisted ui.filter (set by /filter command).
+  // This drives both BacklogPane and the flatBeadIds memo so they always agree.
+  // ---------------------------------------------------------------------------
+  const effectiveFilter = ui.input !== '' && !ui.input.startsWith('/') ? ui.input : ui.filter;
+
+  // ---------------------------------------------------------------------------
   // Flat bead id list for arrow-key navigation (memoised; recomputes on poll).
   // ---------------------------------------------------------------------------
   const flatBeadIds = useMemo(() => {
     if (!model) return [];
-    const q = ui.filter.trim().toLowerCase();
-    const hit = (b: { id: string; title: string; status?: string | null }) =>
-      q === '' || `${b.id} ${b.title} ${b.status ?? ''}`.toLowerCase().includes(q);
+    const q = effectiveFilter.trim().toLowerCase();
     return [
-      ...model.ready.filter(hit),
-      ...model.inProgress.filter(hit),
-      ...model.blocked.filter(hit),
+      ...model.ready.filter((b) => matchesFilter(b, q)),
+      ...model.inProgress.filter((b) => matchesFilter(b, q)),
+      ...model.blocked.filter((b) => matchesFilter(b, q)),
     ].map((b) => b.id);
-  }, [model, ui.filter]);
+  }, [model, effectiveFilter]);
 
   // ---------------------------------------------------------------------------
   // Single keyboard dispatcher. All input flows through here; pane components
@@ -291,12 +299,26 @@ export function App({ initial, rawModeSupported = true, deps = {} }: AppProps): 
     if (key.meta && input === '2') return focus('backlog');
     if (key.meta && input === '3') return focus('stream');
 
-    // Tab / Shift+Tab cycle pane focus.
-    if (key.tab) return cyclePane(key.shift ? -1 : 1);
+    // '?' opens the help overlay ONLY when the buffer is empty; otherwise it
+    // is a literal character that gets appended below (so '/gate??' types fine).
+    if (input === '?' && ui.input === '') {
+      setUi((s) => ({ ...s, modal: 'help' }));
+      return;
+    }
 
-    // Arrow keys: navigate the focused backlog or (future) scroll the stream.
+    // Arrow keys: palette row navigation (buffer starts with '/') or backlog nav.
     if (key.upArrow || key.downArrow) {
-      if (ui.focusedPane === 'backlog' && flatBeadIds.length > 0) {
+      if (ui.input.startsWith('/')) {
+        // Move palette selection up/down.
+        const verb = ui.input.slice(1).split(/\s+/)[0] ?? '';
+        const ranked = fuzzyRank(verb, commandNames());
+        const maxIdx = Math.max(0, ranked.length - 1);
+        setUi((s) => {
+          const cur = Math.min(s.paletteIndex, maxIdx);
+          const next = key.downArrow ? Math.min(cur + 1, maxIdx) : Math.max(cur - 1, 0);
+          return { ...s, paletteIndex: next };
+        });
+      } else if (ui.focusedPane === 'backlog' && flatBeadIds.length > 0) {
         const cur = ui.selectedBeadId != null ? flatBeadIds.indexOf(ui.selectedBeadId) : -1;
         const next = key.downArrow
           ? cur < 0
@@ -310,35 +332,76 @@ export function App({ initial, rawModeSupported = true, deps = {} }: AppProps): 
       return;
     }
 
-    // Esc: clear the command buffer (and close the palette when 200.3 lands).
-    if (key.escape) {
-      setUi((s) => ({ ...s, input: '' }));
+    // Tab: complete the buffer to the selected palette command (when palette is
+    // open), or cycle pane focus (when no palette).
+    if (key.tab) {
+      if (ui.input.startsWith('/')) {
+        const verb = ui.input.slice(1).split(/\s+/)[0] ?? '';
+        const ranked = fuzzyRank(verb, commandNames());
+        if (ranked.length > 0) {
+          const selected = ranked[Math.min(ui.paletteIndex, ranked.length - 1)];
+          setUi((s) => ({ ...s, input: `/${selected} `, paletteIndex: 0 }));
+        }
+      } else {
+        cyclePane(key.shift ? -1 : 1);
+      }
       return;
     }
 
-    // Enter: dispatch the command buffer (non-empty) or no-op (empty).
+    // Esc: clear the command buffer AND the persisted filter.
+    if (key.escape) {
+      setUi((s) => ({ ...s, input: '', filter: '', paletteIndex: 0 }));
+      return;
+    }
+
+    // Enter: dispatch the command buffer.
     if (key.return) {
       const raw = ui.input.trim();
       if (raw === '') return;
-      const result = resolveCommand(raw);
-      if (result.ok) {
-        void result.spec.run(ctx, result.parsed);
+
+      if (raw.startsWith('/')) {
+        // Try to resolve the typed text as a full command first.
+        const result = resolveCommand(raw);
+        if (result.ok) {
+          void result.spec.run(ctx, result.parsed);
+        } else {
+          // Fall back to the highlighted palette row.
+          const verb = raw.slice(1).split(/\s+/)[0] ?? '';
+          const ranked = fuzzyRank(verb, commandNames());
+          if (ranked.length > 0) {
+            const selectedName = ranked[Math.min(ui.paletteIndex, ranked.length - 1)];
+            const spec = findCommand(selectedName);
+            if (spec) {
+              const restArgs = raw.slice(1 + verb.length).trim();
+              const line = restArgs ? `/${selectedName} ${restArgs}` : `/${selectedName}`;
+              void spec.run(ctx, parseCommandLine(line));
+            } else {
+              ctx.notify(result.error);
+            }
+          } else {
+            // No palette match either — surface the resolveCommand error.
+            ctx.notify(result.error);
+          }
+        }
       } else {
-        ctx.notify(result.error);
+        // Bare text Enter: promote the live filter to a persistent filter and
+        // clear the input. Esc is the only way to unset the filter afterward.
+        setUi((s) => ({ ...s, input: '', filter: raw, paletteIndex: 0 }));
+        return;
       }
-      setUi((s) => ({ ...s, input: '' }));
+      setUi((s) => ({ ...s, input: '', paletteIndex: 0 }));
       return;
     }
 
     // Backspace / Delete: remove the last character from the buffer.
     if (key.backspace || key.delete) {
-      setUi((s) => ({ ...s, input: s.input.slice(0, -1) }));
+      setUi((s) => ({ ...s, input: s.input.slice(0, -1), paletteIndex: 0 }));
       return;
     }
 
     // Printable characters (no Ctrl/Meta modifier) → append to the buffer.
     if (input.length > 0 && !key.ctrl && !key.meta) {
-      setUi((s) => ({ ...s, input: s.input + input }));
+      setUi((s) => ({ ...s, input: s.input + input, paletteIndex: 0 }));
     }
   });
 
@@ -413,7 +476,7 @@ export function App({ initial, rawModeSupported = true, deps = {} }: AppProps): 
             model={model}
             isActive={ui.focusedPane === 'backlog'}
             selectedId={ui.selectedBeadId}
-            filter={ui.filter}
+            filter={effectiveFilter}
             onSelect={(id) => setUi((s) => ({ ...s, selectedBeadId: id }))}
           />
         )}
@@ -428,7 +491,15 @@ export function App({ initial, rawModeSupported = true, deps = {} }: AppProps): 
       {ui.modal === 'quit-confirm' && (
         <Text>Quit the viewer? The run keeps going in the background. (y/n)</Text>
       )}
-      <CommandBar value={ui.input} />
+      {ui.input.startsWith('/') && (
+        <CommandPalette query={ui.input} selectedIndex={ui.paletteIndex} />
+      )}
+      <CommandBar
+        value={ui.input}
+        shiftActive={shiftActive}
+        filter={effectiveFilter}
+        matchCount={effectiveFilter ? flatBeadIds.length : 0}
+      />
       <Footer pane={ui.focusedPane} shiftActive={shiftActive} />
     </Box>
   );

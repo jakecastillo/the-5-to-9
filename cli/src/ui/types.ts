@@ -44,6 +44,8 @@ export interface AppState {
   filter: string;
   /** The command-bar input buffer (empty = idle). */
   input: string;
+  /** The highlighted row index in the slash-command palette (0 = first row). */
+  paletteIndex: number;
   /** The active modal, or null. */
   modal: ModalKind;
   /** A surfaced gate event when modal === 'gate'. */
@@ -63,6 +65,7 @@ export function initialState(): AppState {
     selectedBeadId: null,
     filter: '',
     input: '',
+    paletteIndex: 0,
     modal: null,
     gate: null,
     running: false,

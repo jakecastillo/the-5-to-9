@@ -1,6 +1,7 @@
 import { Box, Text } from 'ink';
 import type { BeadLite } from '../beads-read.ts';
 import type { DashboardModel } from '../operations/dashboard-model.ts';
+import { matchesFilter } from './backlog-filter.ts';
 import { noColor, truncate } from './format.ts';
 
 export interface BacklogPaneProps {
@@ -19,13 +20,6 @@ interface Section {
   label: string;
   color?: string;
   beads: BeadLite[];
-}
-
-/** Does a bead match the (lowercased) filter on id/title/state? */
-function matches(b: BeadLite, q: string): boolean {
-  if (q === '') return true;
-  const hay = `${b.id} ${b.title} ${b.status ?? ''}`.toLowerCase();
-  return hay.includes(q);
 }
 
 /** A 20-cell progress bar like `[████████░░░░] closed 7/11 (63%)`. */
@@ -66,9 +60,9 @@ export function BacklogPane({ model, selectedId, filter }: BacklogPaneProps): Re
   const q = filter.trim().toLowerCase();
 
   const sections: Section[] = [
-    { label: 'READY', beads: model.ready.filter((b) => matches(b, q)) },
-    { label: 'IN-PROGRESS', beads: model.inProgress.filter((b) => matches(b, q)) },
-    { label: 'BLOCKED', color: 'red', beads: model.blocked.filter((b) => matches(b, q)) },
+    { label: 'READY', beads: model.ready.filter((b) => matchesFilter(b, q)) },
+    { label: 'IN-PROGRESS', beads: model.inProgress.filter((b) => matchesFilter(b, q)) },
+    { label: 'BLOCKED', color: 'red', beads: model.blocked.filter((b) => matchesFilter(b, q)) },
   ];
 
   return (

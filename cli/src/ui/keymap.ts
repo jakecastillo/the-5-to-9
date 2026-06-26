@@ -3,19 +3,19 @@ export type Pane = 'status' | 'backlog' | 'stream';
 
 /**
  * A single keymap entry. This table is the ONE source of truth: it drives both
- * `useInput` dispatch (App, B9) AND the Footer/HelpOverlay rendering (here, B2),
- * so the displayed keys can never drift from the real bindings.
+ * `useInput` dispatch (App) AND the Footer/HelpOverlay rendering, so the
+ * displayed keys can never drift from the real bindings.
  */
 export interface KeyBinding {
-  /** The display label for the key (e.g. `tab`, `j/k`, `ctrl+u`). */
+  /** The display label for the key (e.g. `↑/↓`, `Alt+1/2/3`, `Ctrl+C`). */
   key: string;
-  /** A short verb shown in the footer (e.g. `run`, `filter`). */
+  /** A short verb shown in the footer (e.g. `run`, `move`). */
   action: string;
   /** A longer description for the full help overlay. */
   help: string;
   /** Panes this binding is legal in, or 'global' (every pane). */
   panes: Pane[] | 'global';
-  /** Only shown/active when a shift is live (the `r`/`o` actions). */
+  /** Only shown/active when a shift is live. Unused in the new model (all bindings always available). */
   requiresShift?: boolean;
   /**
    * A stable action id dispatched by `useInput` (decoupled from the key label
@@ -24,97 +24,63 @@ export interface KeyBinding {
   id: string;
 }
 
-/** The keymap — encodes the spec's keymap table verbatim. */
+/**
+ * The keymap — encodes the ACTUAL command-model bindings verbatim. All entries
+ * are global (no pane-specific or requiresShift). Dead single-letter bindings
+ * (c/r/o/j/k/g/G/f) from the pre-200.2 era are removed.
+ */
 export const KEYMAP: KeyBinding[] = [
   {
-    key: '1/2/3',
+    key: '/',
+    action: 'commands',
+    help: 'Open the command palette (type to fuzzy-filter slash commands)',
+    panes: 'global',
+    id: 'palette',
+  },
+  {
+    key: '↑/↓',
+    action: 'move',
+    help: 'Move backlog selection; move palette row when palette is open',
+    panes: 'global',
+    id: 'move',
+  },
+  {
+    key: 'Tab',
+    action: 'complete/cycle',
+    help: 'Complete palette selection to buffer; cycle pane focus when palette closed (Shift+Tab reverse)',
+    panes: 'global',
+    id: 'tab',
+  },
+  {
+    key: 'Enter',
+    action: 'run',
+    help: 'Dispatch the command buffer (slash command or palette selection)',
+    panes: 'global',
+    id: 'enter',
+  },
+  {
+    key: 'Alt+1/2/3',
     action: 'panes',
     help: 'Focus Status / Backlog / Run Stream',
     panes: 'global',
     id: 'focus-num',
   },
   {
-    key: 'tab',
-    action: 'cycle',
-    help: 'Cycle focus next / prev (Shift+Tab)',
-    panes: 'global',
-    id: 'cycle',
-  },
-  {
-    key: 'j/k',
-    action: 'move',
-    help: 'Move selection / scroll focused pane',
-    panes: ['backlog', 'stream'],
-    id: 'move',
-  },
-  {
-    key: 'g/G',
-    action: 'top/bottom',
-    help: 'Jump to top / bottom of list',
-    panes: ['backlog'],
-    id: 'edge',
-  },
-  {
-    key: 'enter',
-    action: 'details',
-    help: 'Open bead detail / submit in a flow',
-    panes: ['backlog'],
-    id: 'enter',
-  },
-  {
-    key: '/',
-    action: 'filter',
-    help: 'Filter backlog (id/title/state); Esc clears',
-    panes: ['backlog'],
-    id: 'filter',
-  },
-  {
-    key: 'c',
-    action: 'clock-in',
-    help: 'Clock in: open the goal text-input modal',
-    panes: 'global',
-    id: 'clock-in',
-  },
-  {
-    key: 'r',
-    action: 'run',
-    help: 'Run the loop; focus the Run Stream',
-    panes: 'global',
-    requiresShift: true,
-    id: 'run',
-  },
-  {
-    key: 'f',
-    action: 'follow',
-    help: 'Toggle follow/tail (auto-scroll vs pin)',
-    panes: ['stream'],
-    id: 'follow',
-  },
-  {
-    key: 'ctrl+u/d',
-    action: 'page',
-    help: 'Page the stream up / down',
-    panes: ['stream'],
-    id: 'page',
-  },
-  {
-    key: 'o',
-    action: 'clock-out',
-    help: 'Clock out: stop streaming, open the report',
-    panes: 'global',
-    requiresShift: true,
-    id: 'clock-out',
-  },
-  { key: '?', action: 'help', help: 'Toggle the full keymap overlay', panes: 'global', id: 'help' },
-  {
-    key: 'esc',
-    action: 'cancel',
-    help: 'Close modal / pop detail / clear filter (never a side effect)',
+    key: 'Esc',
+    action: 'clear',
+    help: 'Clear command buffer and filter (never a side effect)',
     panes: 'global',
     id: 'escape',
   },
   {
-    key: 'q',
+    key: '?',
+    action: 'help',
+    help: 'Open the help overlay (empty buffer only; else appended as literal)',
+    panes: 'global',
+    id: 'help',
+  },
+  {
+    key: 'Ctrl+C',
     action: 'quit',
     help: 'Quit the viewer (never kills the driver)',
     panes: 'global',
@@ -130,6 +96,8 @@ export function appliesTo(b: KeyBinding, pane: Pane): boolean {
 /**
  * The bindings legal in `pane` given the current shift state — the single
  * source for BOTH the footer and the help overlay so they can't drift.
+ * With all bindings now global and no requiresShift entries, this returns
+ * the full KEYMAP for any pane/shiftActive combination.
  */
 export function bindingsFor(pane: Pane, shiftActive: boolean): KeyBinding[] {
   return KEYMAP.filter((b) => appliesTo(b, pane) && (!b.requiresShift || shiftActive));
